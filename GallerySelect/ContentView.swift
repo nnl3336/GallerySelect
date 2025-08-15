@@ -9,32 +9,21 @@ import SwiftUI
 import PhotosUI
 import CoreData
 
-import SwiftUI
-import CoreData
-import PhotosUI
-
 struct ContentView: View {
-    @Environment(\.managedObjectContext) private var viewContext
-    @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \Photo.date, ascending: true)],
-        animation: .default)
-    private var photos: FetchedResults<Photo>
-    
+    @State private var images: [UIImage] = []
     @State private var showPicker = false
     
     var body: some View {
         VStack {
             ScrollView(.horizontal) {
                 HStack {
-                    ForEach(photos) { photo in
-                        if let imageData = photo.imageData, let uiImage = UIImage(data: imageData) {
-                            Image(uiImage: uiImage)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 100, height: 100)
-                                .clipped()
-                                .cornerRadius(8)
-                        }
+                    ForEach(images, id: \.self) { image in
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 100, height: 100)
+                            .clipped()
+                            .cornerRadius(8)
                     }
                 }
                 .padding()
@@ -46,63 +35,51 @@ struct ContentView: View {
             .padding()
         }
         .sheet(isPresented: $showPicker) {
-            PhotoPicker { images in
-                for image in images {
-                    let newPhoto = Photo(context: viewContext)
-                    newPhoto.id = UUID()
-                    newPhoto.date = Date()
-                    newPhoto.imageData = image.jpegData(compressionQuality: 0.8)
-                    
-                    do {
-                        try viewContext.save()
-                    } catch {
-                        print(error)
-                    }
-                }
-            }
+            PhotoPicker(images: $images)
         }
     }
 }
 
 struct PhotoPicker: UIViewControllerRepresentable {
-    var completion: ([UIImage]) -> Void
+    @Binding var images: [UIImage] // 選択された写真を渡す
     
     func makeUIViewController(context: Context) -> PHPickerViewController {
-        var config = PHPickerConfiguration()
-        config.selectionLimit = 0
-        config.filter = .images
+        var configuration = PHPickerConfiguration()
+        configuration.selectionLimit = 0 // 0で無制限に選択可能
+        configuration.filter = .images // 画像のみ
         
-        let picker = PHPickerViewController(configuration: config)
+        let picker = PHPickerViewController(configuration: configuration)
         picker.delegate = context.coordinator
         return picker
     }
     
     func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
     
-    func makeCoordinator() -> Coordinator { Coordinator(self) }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
     
     class Coordinator: NSObject, PHPickerViewControllerDelegate {
         var parent: PhotoPicker
-        init(_ parent: PhotoPicker) { self.parent = parent }
+        
+        init(_ parent: PhotoPicker) {
+            self.parent = parent
+        }
         
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
             picker.dismiss(animated: true)
-            var images: [UIImage] = []
-            
-            let group = DispatchGroup()
+            parent.images = [] // 以前の画像をリセット
             
             for result in results {
                 if result.itemProvider.canLoadObject(ofClass: UIImage.self) {
-                    group.enter()
                     result.itemProvider.loadObject(ofClass: UIImage.self) { object, error in
-                        if let image = object as? UIImage { images.append(image) }
-                        group.leave()
+                        if let image = object as? UIImage {
+                            DispatchQueue.main.async {
+                                self.parent.images.append(image)
+                            }
+                        }
                     }
                 }
-            }
-            
-            group.notify(queue: .main) {
-                self.parent.completion(images)
             }
         }
     }

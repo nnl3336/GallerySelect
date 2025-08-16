@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		188981272E4F301400D6539F /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 188981262E4F301400D6539F /* ContentView.swift */; };
+		18A62A212E50544900AFC31A /* GallerySelect.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 18A62A1D2E50544900AFC31A /* GallerySelect.xcdatamodeld */; };
 		18A62A2E2E50552500AFC31A /* PhotoSliderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18A62A2D2E50552500AFC31A /* PhotoSliderView.swift */; };
 /* End PBXBuildFile section */
 
@@ -33,6 +34,7 @@
 		188981262E4F301400D6539F /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		188981322E4F301600D6539F /* GallerySelectTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GallerySelectTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1889813C2E4F301600D6539F /* GallerySelectUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GallerySelectUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		18A62A202E50544900AFC31A /* GallerySelect.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = GallerySelect.xcdatamodel; sourceTree = "<group>"; };
 		18A62A2D2E50552500AFC31A /* PhotoSliderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoSliderView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -84,6 +86,7 @@
 			children = (
 				188981262E4F301400D6539F /* ContentView.swift */,
 				18A62A2D2E50552500AFC31A /* PhotoSliderView.swift */,
+				18A62A1D2E50544900AFC31A /* GallerySelect.xcdatamodeld */,
 				1889811E2E4F301400D6539F /* GallerySelect */,
 				188981352E4F301600D6539F /* GallerySelectTests */,
 				1889813F2E4F301600D6539F /* GallerySelectUITests */,
@@ -246,6 +249,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				188981272E4F301400D6539F /* ContentView.swift in Sources */,
+				18A62A212E50544900AFC31A /* GallerySelect.xcdatamodeld in Sources */,
 				18A62A2E2E50552500AFC31A /* PhotoSliderView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -602,6 +606,19 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCVersionGroup section */
+		18A62A1D2E50544900AFC31A /* GallerySelect.xcdatamodeld */ = {
+			isa = XCVersionGroup;
+			children = (
+				18A62A202E50544900AFC31A /* GallerySelect.xcdatamodel */,
+			);
+			currentVersion = 18A62A202E50544900AFC31A /* GallerySelect.xcdatamodel */;
+			path = GallerySelect.xcdatamodeld;
+			sourceTree = "<group>";
+			versionGroupType = wrapper.xcdatamodel;
+		};
+/* End XCVersionGroup section */
 	};
 	rootObject = 188981142E4F301400D6539F /* Project object */;
 }

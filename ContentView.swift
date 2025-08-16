@@ -72,11 +72,18 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $showPicker) {
-            PhotoPicker { images in
-                for image in images {
+            PhotoPicker { images, assets in
+                for (index, image) in images.enumerated() {
                     let newPhoto = Photo(context: viewContext)
                     newPhoto.id = UUID()
-                    newPhoto.date = Date()
+                    
+                    // PHAsset から creationDate を取得できれば使う
+                    if index < assets.count, let creationDate = assets[index].creationDate {
+                        newPhoto.date = creationDate
+                    } else {
+                        newPhoto.date = Date()
+                    }
+                    
                     newPhoto.imageData = image.jpegData(compressionQuality: 0.8)
                     
                     do {
@@ -91,7 +98,7 @@ struct ContentView: View {
 }
 
 struct PhotoPicker: UIViewControllerRepresentable {
-    var completion: ([UIImage]) -> Void
+    var completion: (_ images: [UIImage], _ assets: [PHAsset]) -> Void
     
     func makeUIViewController(context: Context) -> PHPickerViewController {
         var config = PHPickerConfiguration()
@@ -114,10 +121,17 @@ struct PhotoPicker: UIViewControllerRepresentable {
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
             picker.dismiss(animated: true)
             var images: [UIImage] = []
+            var assets: [PHAsset] = []
             
             let group = DispatchGroup()
             
             for result in results {
+                // PHAsset を取得
+                if let assetId = result.assetIdentifier,
+                   let asset = PHAsset.fetchAssets(withLocalIdentifiers: [assetId], options: nil).firstObject {
+                    assets.append(asset)
+                }
+                
                 if result.itemProvider.canLoadObject(ofClass: UIImage.self) {
                     group.enter()
                     result.itemProvider.loadObject(ofClass: UIImage.self) { object, error in
@@ -128,7 +142,7 @@ struct PhotoPicker: UIViewControllerRepresentable {
             }
             
             group.notify(queue: .main) {
-                self.parent.completion(images)
+                self.parent.completion(images, assets)
             }
         }
     }

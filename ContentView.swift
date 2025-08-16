@@ -35,47 +35,56 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             VStack {
-                ScrollView {
-                    LazyVGrid(columns: columns, spacing: 10) {
-                        ForEach(photos.indices, id: \.self) { index in
-                            if let imageData = photos[index].imageData,
-                               let uiImage = UIImage(data: imageData) {
-                                Image(uiImage: uiImage)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(height: 100)
-                                    .clipped()
-                                    .cornerRadius(8)
-                                    .onTapGesture {
-                                        selectedIndex = index
-                                    }
-                                    .contextMenu {
-                                        // 保存
-                                        Button {
-                                            saveImageToCameraRoll(uiImage)
-                                        } label: {
-                                            Label("保存", systemImage: "square.and.arrow.down")
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVGrid(columns: columns, spacing: 10) {
+                            ForEach(photos.indices, id: \.self) { index in
+                                if let imageData = photos[index].imageData,
+                                   let uiImage = UIImage(data: imageData) {
+                                    Image(uiImage: uiImage)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(height: 100)
+                                        .clipped()
+                                        .cornerRadius(8)
+                                        .id(index) // ScrollViewReader でスクロールするための ID
+                                        .onTapGesture {
+                                            selectedIndex = index
                                         }
+                                        .contextMenu {
+                                            // 保存
+                                            Button {
+                                                saveImageToCameraRoll(uiImage)
+                                            } label: {
+                                                Label("保存", systemImage: "square.and.arrow.down")
+                                            }
 
-                                        // 削除
-                                        Button(role: .destructive) {
-                                            deletePhoto(at: index)
-                                        } label: {
-                                            Label("削除", systemImage: "trash")
+                                            // 削除
+                                            Button(role: .destructive) {
+                                                deletePhoto(at: index)
+                                            } label: {
+                                                Label("削除", systemImage: "trash")
+                                            }
                                         }
-                                    }
+                                }
                             }
                         }
+                        .padding()
                     }
-                    .padding()
+                    .onAppear {
+                        // 最新写真（最後のインデックス）を表示
+                        if let lastIndex = photos.indices.last {
+                            proxy.scrollTo(lastIndex, anchor: .bottom)
+                        }
+                    }
                 }
-                
+
                 Button("写真を選択") {
                     showPicker = true
                 }
                 .padding()
             }
-            
+
             // オーバーレイ表示
             if let index = selectedIndex {
                 PhotoSliderView(

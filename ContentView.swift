@@ -13,6 +13,10 @@ import SwiftUI
 import CoreData
 import PhotosUI
 
+import SwiftUI
+import PhotosUI
+import CoreData
+
 struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @FetchRequest(
@@ -22,16 +26,23 @@ struct ContentView: View {
     
     @State private var showPicker = false
     
+    // グリッド列の設定
+    let columns = [
+        GridItem(.flexible()),
+        GridItem(.flexible()),
+        GridItem(.flexible())
+    ]
+    
     var body: some View {
         VStack {
-            ScrollView(.horizontal) {
-                HStack {
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 10) {
                     ForEach(photos) { photo in
                         if let imageData = photo.imageData, let uiImage = UIImage(data: imageData) {
                             Image(uiImage: uiImage)
                                 .resizable()
                                 .scaledToFill()
-                                .frame(width: 100, height: 100)
+                                .frame(height: 100)
                                 .clipped()
                                 .cornerRadius(8)
                         }

@@ -49,6 +49,21 @@ struct ContentView: View {
                                     .onTapGesture {
                                         selectedIndex = index
                                     }
+                                    .contextMenu {
+                                        // 保存
+                                        Button {
+                                            saveImageToCameraRoll(uiImage)
+                                        } label: {
+                                            Label("保存", systemImage: "square.and.arrow.down")
+                                        }
+
+                                        // 削除
+                                        Button(role: .destructive) {
+                                            deletePhoto(at: index)
+                                        } label: {
+                                            Label("削除", systemImage: "trash")
+                                        }
+                                    }
                             }
                         }
                     }
@@ -95,6 +110,43 @@ struct ContentView: View {
             }
         }
     }
+}
+
+extension ContentView {
+    
+    // MARK: - func
+    
+    func deletePhoto(at index: Int) {
+        let photo = photos[index]
+        viewContext.delete(photo)
+        
+        do {
+            try viewContext.save()
+        } catch {
+            print("削除エラー: \(error)")
+        }
+    }
+    
+    func saveImageToCameraRoll(_ image: UIImage, creationDate: Date? = nil) {
+        PHPhotoLibrary.requestAuthorization { status in
+            guard status == .authorized || status == .limited else { return }
+            
+            PHPhotoLibrary.shared().performChanges({
+                let request = PHAssetChangeRequest.creationRequestForAsset(from: image)
+                if let date = creationDate {
+                    request.creationDate = date
+                }
+            }) { success, error in
+                if success {
+                    print("保存成功")
+                } else {
+                    print("保存失敗: \(error?.localizedDescription ?? "")")
+                }
+            }
+        }
+    }
+
+
 }
 
 struct PhotoPicker: UIViewControllerRepresentable {

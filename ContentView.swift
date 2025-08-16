@@ -10,12 +10,11 @@ import PhotosUI
 import CoreData
 
 import SwiftUI
-import CoreData
 import PhotosUI
+import CoreData
 
 import SwiftUI
-import PhotosUI
-import CoreData
+import Photos
 
 struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
@@ -26,7 +25,6 @@ struct ContentView: View {
     
     @State private var showPicker = false
     
-    // グリッド列の設定
     let columns = [
         GridItem(.flexible()),
         GridItem(.flexible()),
@@ -38,7 +36,8 @@ struct ContentView: View {
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 10) {
                     ForEach(photos) { photo in
-                        if let imageData = photo.imageData, let uiImage = UIImage(data: imageData) {
+                        if let imageData = photo.imageData,
+                           let uiImage = UIImage(data: imageData) {
                             Image(uiImage: uiImage)
                                 .resizable()
                                 .scaledToFill()
@@ -59,16 +58,39 @@ struct ContentView: View {
         .sheet(isPresented: $showPicker) {
             PhotoPicker { images in
                 for image in images {
-                    let newPhoto = Photo(context: viewContext)
-                    newPhoto.id = UUID()
-                    newPhoto.date = Date()
-                    newPhoto.imageData = image.jpegData(compressionQuality: 0.8)
-                    
-                    do {
-                        try viewContext.save()
-                    } catch {
-                        print(error)
-                    }
+                    let now = Date() // アプリ内での撮影日
+                    saveToCoreDataAndCameraRoll(image: image, date: now)
+                }
+            }
+        }
+    }
+    
+    // Core Data とカメラロールに保存
+    func saveToCoreDataAndCameraRoll(image: UIImage, date: Date) {
+        // 1. Core Data 保存
+        let newPhoto = Photo(context: viewContext)
+        newPhoto.id = UUID()
+        newPhoto.date = date
+        newPhoto.imageData = image.jpegData(compressionQuality: 0.8)
+        
+        do {
+            try viewContext.save()
+        } catch {
+            print("Core Data 保存エラー: \(error)")
+        }
+        
+        // 2. カメラロールに保存（creationDate 指定）
+        PHPhotoLibrary.requestAuthorization { status in
+            guard status == .authorized || status == .limited else { return }
+            
+            PHPhotoLibrary.shared().performChanges({
+                let request = PHAssetChangeRequest.creationRequestForAsset(from: image)
+                request.creationDate = date
+            }) { success, error in
+                if success {
+                    print("カメラロール保存成功: \(date)")
+                } else {
+                    print("カメラロール保存失敗: \(error?.localizedDescription ?? "")")
                 }
             }
         }

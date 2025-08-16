@@ -20,32 +20,36 @@ struct PhotoSliderView: View {
             
             TabView(selection: $selectedIndex) {
                 ForEach(photos.indices, id: \.self) { index in
-                    Image(uiImage: photos[index])
-                        .resizable()
-                        .scaledToFit()
-                        .tag(index)
-                        .offset(y: offset.height)
-                        .scaleEffect(1 - min(offset.height / 1000, 0.5))
-                        .gesture(
-                            DragGesture()
-                                .onChanged { gesture in
-                                    if gesture.translation.height > 0 {
-                                        offset = gesture.translation
-                                    }
-                                }
-                                .onEnded { gesture in
-                                    if gesture.translation.height > 150 {
-                                        onClose()
-                                    } else {
-                                        withAnimation(.spring()) {
-                                            offset = .zero
-                                        }
-                                    }
-                                }
-                        )
+                    ZStack {
+                        Image(uiImage: photos[index])
+                            .resizable()
+                            .scaledToFit()
+                            .offset(y: offset.height)
+                            .scaleEffect(1 - min(offset.height / 1000, 0.5))
+                            .animation(.interactiveSpring(), value: offset)
+                    }
+                    .tag(index)
                 }
             }
             .tabViewStyle(PageTabViewStyle(indexDisplayMode: .always))
+            // 上にドラッグ用のジェスチャを追加
+            .gesture(
+                DragGesture()
+                    .onChanged { gesture in
+                        if abs(gesture.translation.width) < abs(gesture.translation.height) {
+                            offset = gesture.translation
+                        }
+                    }
+                    .onEnded { gesture in
+                        if offset.height > 150 {
+                            onClose()
+                        } else {
+                            withAnimation(.spring()) {
+                                offset = .zero
+                            }
+                        }
+                    }
+            )
             
             Button(action: onClose) {
                 Image(systemName: "xmark.circle.fill")

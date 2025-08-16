@@ -129,18 +129,23 @@ extension ContentView {
     
     func saveImageToCameraRoll(_ image: UIImage, creationDate: Date? = nil) {
         PHPhotoLibrary.requestAuthorization { status in
-            guard status == .authorized || status == .limited else { return }
-            
+            guard status == .authorized || status == .limited else {
+                print("権限なし")
+                return
+            }
+
             PHPhotoLibrary.shared().performChanges({
                 let request = PHAssetChangeRequest.creationRequestForAsset(from: image)
                 if let date = creationDate {
                     request.creationDate = date
                 }
             }) { success, error in
-                if success {
-                    print("保存成功")
-                } else {
-                    print("保存失敗: \(error?.localizedDescription ?? "")")
+                DispatchQueue.main.async { // UI 更新は必ず main thread
+                    if success {
+                        print("保存成功")
+                    } else {
+                        print("保存失敗: \(error?.localizedDescription ?? "")")
+                    }
                 }
             }
         }
@@ -149,13 +154,16 @@ extension ContentView {
 
 }
 
+// MARK: - PhotoPicker
+
 struct PhotoPicker: UIViewControllerRepresentable {
+    // completion に UIImage と PHAsset を渡す
     var completion: (_ images: [UIImage], _ assets: [PHAsset]) -> Void
     
     func makeUIViewController(context: Context) -> PHPickerViewController {
         var config = PHPickerConfiguration()
-        config.selectionLimit = 0
-        config.filter = .images
+        config.selectionLimit = 0 // 複数選択
+        config.filter = .images   // 画像のみ
         
         let picker = PHPickerViewController(configuration: config)
         picker.delegate = context.coordinator

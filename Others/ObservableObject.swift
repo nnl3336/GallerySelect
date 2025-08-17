@@ -7,8 +7,10 @@
 
 import SwiftUI
 import CoreData
+import Photos
 
-class PhotoFetchController: NSObject, ObservableObject, NSFetchedResultsControllerDelegate {
+// MARK: - FRCラッパークラス
+class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDelegate {
     @Published var photos: [Photo] = []
     
     private let context: NSManagedObjectContext
@@ -17,12 +19,12 @@ class PhotoFetchController: NSObject, ObservableObject, NSFetchedResultsControll
     init(context: NSManagedObjectContext) {
         self.context = context
         
-        let request: NSFetchRequest<Photo> = Photo.fetchRequest()
-        request.sortDescriptors = [NSSortDescriptor(keyPath: \Photo.creationDate, ascending: true)]
-        request.fetchBatchSize = 20
+        let fetchRequest: NSFetchRequest<Photo> = Photo.fetchRequest()
+        fetchRequest.sortDescriptors = [NSSortDescriptor(keyPath: \Photo.creationDate, ascending: true)]
+        fetchRequest.fetchBatchSize = 20   // ← ここ
         
         frc = NSFetchedResultsController(
-            fetchRequest: request,
+            fetchRequest: fetchRequest,
             managedObjectContext: context,
             sectionNameKeyPath: nil,
             cacheName: nil
@@ -40,26 +42,27 @@ class PhotoFetchController: NSObject, ObservableObject, NSFetchedResultsControll
     }
     
     func fetchPhotos(predicate: NSPredicate? = nil) {
-        let request: NSFetchRequest<Photo> = Photo.fetchRequest()
-        request.sortDescriptors = [NSSortDescriptor(keyPath: \Photo.creationDate, ascending: true)]
-        request.predicate = predicate
-        
-        do {
-            filteredPhotos = try context.fetch(request)
-        } catch {
-            print("Fetch error: \(error)")
+            let request: NSFetchRequest<Photo> = Photo.fetchRequest()
+            request.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
+            request.predicate = predicate
+
+            do {
+                photos = try context.fetch(request)
+            } catch {
+                print("Fetch error: \(error)")
+            }
         }
-    }
     
-    func applyFilter(keyword: String = "", likedOnly: Bool = false) {
+    func applyFilter(keyword: String, likedOnly: Bool) {
         var predicates: [NSPredicate] = []
+
         if !keyword.isEmpty {
             predicates.append(NSPredicate(format: "note CONTAINS[cd] %@", keyword))
         }
         if likedOnly {
             predicates.append(NSPredicate(format: "isLiked == true"))
         }
-        
+
         let compound = predicates.isEmpty ? nil : NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
         fetchPhotos(predicate: compound)
     }
@@ -74,7 +77,11 @@ class PhotoFetchController: NSObject, ObservableObject, NSFetchedResultsControll
     func deletePhoto(at index: Int) {
         let photo = photos[index]
         context.delete(photo)
-        try? context.save()
+        do {
+            try context.save()
+        } catch {
+            print(error)
+        }
     }
     
     func addPhoto(_ image: UIImage, creationDate: Date = Date()) {
@@ -82,7 +89,12 @@ class PhotoFetchController: NSObject, ObservableObject, NSFetchedResultsControll
         newPhoto.id = UUID()
         newPhoto.creationDate = creationDate
         newPhoto.imageData = image.jpegData(compressionQuality: 0.8)
-        try? context.save()
+        
+        do {
+            try context.save()
+        } catch {
+            print(error)
+        }
     }
     
     func saveImageToCameraRoll(_ image: UIImage) {
@@ -93,28 +105,4 @@ class PhotoFetchController: NSObject, ObservableObject, NSFetchedResultsControll
             })
         }
     }
-}
-
-class PhotoSearchController: ObservableObject {
-    @Published var filteredPhotos: [Photo] = []
-    private let context: NSManagedObjectContext
-    
-    init(context: NSManagedObjectContext) {
-        self.context = context
-        fetchPhotos()
-    }
-    
-    func fetchPhotos(predicate: NSPredicate? = nil) {
-        let request: NSFetchRequest<Photo> = Photo.fetchRequest()
-        request.sortDescriptors = [NSSortDescriptor(keyPath: \Photo.creationDate, ascending: true)]
-        request.predicate = predicate
-        
-        do {
-            filteredPhotos = try context.fetch(request)
-        } catch {
-            print("Fetch error: \(error)")
-        }
-    }
-    
-    
 }

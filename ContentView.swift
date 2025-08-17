@@ -19,7 +19,7 @@ import Photos
 // MARK: - SwiftUI ContentView
 struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
-    @StateObject private var controller: PhotoFetchController
+    @StateObject private var controller: PhotoController
     
     @State private var showPicker = false
     @State private var selectedIndex: Int? = nil
@@ -32,7 +32,7 @@ struct ContentView: View {
     ]
     
     init(context: NSManagedObjectContext) {
-        _controller = StateObject(wrappedValue: PhotoFetchController(context: context))
+        _controller = StateObject(wrappedValue: PhotoController(context: context))
     }
     
     var body: some View {

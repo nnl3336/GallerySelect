@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct SearchView: View {
-    var controller: PhotoFetchController        // ← @ObservedObject じゃなくてOK
+    var controller: PhotoController        // ← @ObservedObject じゃなくてOK
     @Binding var isPresented: Bool
     
     @State private var keyword = ""

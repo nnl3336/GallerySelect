@@ -16,15 +16,14 @@ import CoreData
 import SwiftUI
 import Photos
 
+// MARK: - SwiftUI ContentView
 struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
-    @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \Photo.date, ascending: true)],
-        animation: .default)
-    private var photos: FetchedResults<Photo>
+    @StateObject private var controller: PhotoFetchController
     
     @State private var showPicker = false
     @State private var selectedIndex: Int? = nil
+    @State private var showSearch = false   // ← 検索画面表示用
     
     let columns = [
         GridItem(.flexible()),
@@ -32,101 +31,198 @@ struct ContentView: View {
         GridItem(.flexible())
     ]
     
+    init(context: NSManagedObjectContext) {
+        _controller = StateObject(wrappedValue: PhotoFetchController(context: context))
+    }
+    
     var body: some View {
-        ZStack {
-            VStack {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVGrid(columns: columns, spacing: 10) {
-                            ForEach(photos.indices, id: \.self) { index in
-                                if let imageData = photos[index].imageData,
-                                   let uiImage = UIImage(data: imageData) {
-                                    Image(uiImage: uiImage)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(height: 100)
-                                        .clipped()
-                                        .cornerRadius(8)
-                                        .id(index) // ScrollViewReader でスクロールするための ID
-                                        .onTapGesture {
-                                            selectedIndex = index
-                                        }
-                                        .contextMenu {
-                                            // 保存
-                                            Button {
-                                                saveImageToCameraRoll(uiImage)
-                                            } label: {
-                                                Label("保存", systemImage: "square.and.arrow.down")
+        NavigationView {
+            ZStack {
+                VStack {
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVGrid(columns: columns, spacing: 10) {
+                                ForEach(controller.photos.indices, id: \.self) { index in
+                                    if let imageData = controller.photos[index].imageData,
+                                       let uiImage = UIImage(data: imageData) {
+                                        Image(uiImage: uiImage)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(height: 100)
+                                            .clipped()
+                                            .cornerRadius(8)
+                                            .id(index)
+                                            .onTapGesture {
+                                                selectedIndex = index
                                             }
-
-                                            // 削除
-                                            Button(role: .destructive) {
-                                                deletePhoto(at: index)
-                                            } label: {
-                                                Label("削除", systemImage: "trash")
+                                            .contextMenu {
+                                                Button {
+                                                    controller.saveImageToCameraRoll(uiImage)
+                                                } label: {
+                                                    Label("保存", systemImage: "square.and.arrow.down")
+                                                }
+                                                
+                                                Button(role: .destructive) {
+                                                    controller.deletePhoto(at: index)
+                                                } label: {
+                                                    Label("削除", systemImage: "trash")
+                                                }
                                             }
-                                        }
+                                    }
                                 }
                             }
+                            .padding()
                         }
-                        .padding()
-                    }
-                    .onAppear {
-                        // 最新写真（最後のインデックス）を表示
-                        if let lastIndex = photos.indices.last {
-                            proxy.scrollTo(lastIndex, anchor: .bottom)
+                        .onAppear {
+                            if let lastIndex = controller.photos.indices.last {
+                                proxy.scrollTo(lastIndex, anchor: .bottom)
+                            }
                         }
                     }
-                }
-
-                Button("写真を選択") {
-                    showPicker = true
-                }
-                .padding()
-            }
-
-            // オーバーレイ表示
-            if let index = selectedIndex {
-                PhotoSliderView(
-                    photos: photos.compactMap { $0.imageData }.map { UIImage(data: $0)! },
-                    selectedIndex: index,
-                    onClose: { selectedIndex = nil }
-                )
-                .zIndex(1)
-            }
-        }
-        .sheet(isPresented: $showPicker) {
-            PhotoPicker { images, assets in
-                for (index, image) in images.enumerated() {
-                    let newPhoto = Photo(context: viewContext)
-                    newPhoto.id = UUID()
                     
-                    // PHAsset から creationDate を取得できれば使う
-                    if index < assets.count, let creationDate = assets[index].creationDate {
-                        newPhoto.date = creationDate
-                    } else {
-                        newPhoto.date = Date()
+                    Button("写真を選択") {
+                        showPicker = true
                     }
-                    
-                    newPhoto.imageData = image.jpegData(compressionQuality: 0.8)
-                    
-                    do {
-                        try viewContext.save()
-                    } catch {
-                        print(error)
+                    .padding()
+                }
+                
+                if let index = selectedIndex {
+                    PhotoSliderView(
+                        photos: controller.photos.compactMap { $0.imageData }.map { UIImage(data: $0)! },
+                        selectedIndex: index,
+                        onClose: { selectedIndex = nil }
+                    )
+                    .zIndex(1)
+                }
+            }
+            .navigationTitle("写真")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        showSearch = true
+                    } label: {
+                        Image(systemName: "magnifyingglass")
                     }
                 }
+            }
+            .sheet(isPresented: $showPicker) {
+                PhotoPicker { images, assets in
+                    for (i, image) in images.enumerated() {
+                        let creationDate = (i < assets.count) ? assets[i].creationDate ?? Date() : Date()
+                        controller.addPhoto(image, creationDate: creationDate)
+                    }
+                }
+            }
+            .fullScreenCover(isPresented: $showSearch) {
+                SearchView(controller: controller, isPresented: $showSearch)
             }
         }
     }
 }
 
-extension ContentView {
+// MARK: - FRCラッパークラス
+/*class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDelegate {
+    @Published var photos: [Photo] = []
     
-    // MARK: - func
+    private let context: NSManagedObjectContext
+    private let frc: NSFetchedResultsController<Photo>
+    
+    init(context: NSManagedObjectContext) {
+        self.context = context
+        
+        let fetchRequest: NSFetchRequest<Photo> = Photo.fetchRequest()
+        fetchRequest.sortDescriptors = [NSSortDescriptor(keyPath: \Photo.creationDate, ascending: true)]
+        fetchRequest.fetchBatchSize = 20   // ← ここ
+        
+        frc = NSFetchedResultsController(
+            fetchRequest: fetchRequest,
+            managedObjectContext: context,
+            sectionNameKeyPath: nil,
+            cacheName: nil
+        )
+        
+        super.init()
+        frc.delegate = self
+        
+        do {
+            try frc.performFetch()
+            photos = frc.fetchedObjects ?? []
+        } catch {
+            print("Fetch error: \(error)")
+        }
+    }
+    
+    func fetchPhotos(predicate: NSPredicate? = nil) {
+            let request: NSFetchRequest<Photo> = Photo.fetchRequest()
+            request.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
+            request.predicate = predicate
+
+            do {
+                photos = try context.fetch(request)
+            } catch {
+                print("Fetch error: \(error)")
+            }
+        }
+    
+    func applyFilter(keyword: String, likedOnly: Bool) {
+        var predicates: [NSPredicate] = []
+
+        if !keyword.isEmpty {
+            predicates.append(NSPredicate(format: "note CONTAINS[cd] %@", keyword))
+        }
+        if likedOnly {
+            predicates.append(NSPredicate(format: "isLiked == true"))
+        }
+
+        let compound = predicates.isEmpty ? nil : NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
+        fetchPhotos(predicate: compound)
+    }
+    
+    func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
+        guard let updatedPhotos = controller.fetchedObjects as? [Photo] else { return }
+        DispatchQueue.main.async {
+            self.photos = updatedPhotos
+        }
+    }
     
     func deletePhoto(at index: Int) {
         let photo = photos[index]
+        context.delete(photo)
+        do {
+            try context.save()
+        } catch {
+            print(error)
+        }
+    }
+    
+    func addPhoto(_ image: UIImage, creationDate: Date = Date()) {
+        let newPhoto = Photo(context: context)
+        newPhoto.id = UUID()
+        newPhoto.creationDate = creationDate
+        newPhoto.imageData = image.jpegData(compressionQuality: 0.8)
+        
+        do {
+            try context.save()
+        } catch {
+            print(error)
+        }
+    }
+    
+    func saveImageToCameraRoll(_ image: UIImage) {
+        PHPhotoLibrary.requestAuthorization { status in
+            guard status == .authorized || status == .limited else { return }
+            PHPhotoLibrary.shared().performChanges({
+                PHAssetChangeRequest.creationRequestForAsset(from: image)
+            })
+        }
+    }
+}*/
+
+
+extension ContentView {
+    
+    func deletePhoto(at index: Int) {
+        let photo = controller.photos[index]  // ← controller.photos に変更
         viewContext.delete(photo)
         
         do {
@@ -149,7 +245,7 @@ extension ContentView {
                     request.creationDate = date
                 }
             }) { success, error in
-                DispatchQueue.main.async { // UI 更新は必ず main thread
+                DispatchQueue.main.async { // UI 更新は main thread
                     if success {
                         print("保存成功")
                     } else {
@@ -159,13 +255,15 @@ extension ContentView {
             }
         }
     }
-
-
 }
+
+//
 
 // MARK: - PhotoPicker
 
 struct PhotoPicker: UIViewControllerRepresentable {
+    @Environment(\.managedObjectContext) private var viewContext   // ← ここで参照
+
     // completion に UIImage と PHAsset を渡す
     var completion: (_ images: [UIImage], _ assets: [PHAsset]) -> Void
     
@@ -181,11 +279,53 @@ struct PhotoPicker: UIViewControllerRepresentable {
     
     func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
     
-    func makeCoordinator() -> Coordinator { Coordinator(self) }
+    func makeCoordinator() -> Coordinator {
+            Coordinator(self, viewContext: viewContext)   // ← 渡す
+        }
     
     class Coordinator: NSObject, PHPickerViewControllerDelegate {
-        var parent: PhotoPicker
-        init(_ parent: PhotoPicker) { self.parent = parent }
+            var parent: PhotoPicker
+            var viewContext: NSManagedObjectContext   // ← ここで保持
+            
+            init(_ parent: PhotoPicker, viewContext: NSManagedObjectContext) {
+                self.parent = parent
+                self.viewContext = viewContext
+            }
+        
+        //***
+
+        func saveToCameraRoll(imageData: Data, creationDate: Date?) {
+            PHPhotoLibrary.shared().performChanges {
+                let request = PHAssetCreationRequest.forAsset()
+                let options = PHAssetResourceCreationOptions()
+                request.addResource(with: .photo, data: imageData, options: options)
+                if let creationDate {
+                    request.creationDate = creationDate   // ← ここでAppleの撮影日をセット
+                }
+            } completionHandler: { success, error in
+                if success {
+                    print("保存できました！")
+                } else {
+                    print("エラー: \(error?.localizedDescription ?? "不明")")
+                }
+            }
+        }
+
+        
+        func didPickPhotos(images: [UIImage], assets: [PHAsset]) {
+            for (index, image) in images.enumerated() {
+                let asset = assets.indices.contains(index) ? assets[index] : nil
+                let captureDate = asset?.creationDate ?? Date()  // 撮影日がなければ現在日付で代用
+
+                // Core Data へ保存
+                let newPhoto = Photo(context: viewContext)
+                newPhoto.imageData = image.jpegData(compressionQuality: 0.9)
+                newPhoto.currentDate = captureDate
+            }
+
+            try? viewContext.save()
+        }
+
         
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
             picker.dismiss(animated: true)
@@ -194,11 +334,12 @@ struct PhotoPicker: UIViewControllerRepresentable {
             
             let group = DispatchGroup()
             
-            for result in results {
+            for (index, result) in results.enumerated() {   // ← enumerated() で index 取得
                 // PHAsset を取得
                 if let assetId = result.assetIdentifier,
                    let asset = PHAsset.fetchAssets(withLocalIdentifiers: [assetId], options: nil).firstObject {
                     assets.append(asset)
+                    print("📸 index \(index): captureDate = \(String(describing: asset.creationDate))")  // ← ここでデバッグ
                 }
                 
                 if result.itemProvider.canLoadObject(ofClass: UIImage.self) {
@@ -214,5 +355,6 @@ struct PhotoPicker: UIViewControllerRepresentable {
                 self.parent.completion(images, assets)
             }
         }
+
     }
 }

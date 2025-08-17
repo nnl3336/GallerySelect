@@ -13,7 +13,7 @@ import Photos
 class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDelegate {
     @Published var photos: [Photo] = []
     
-    private let context: NSManagedObjectContext
+    /*private*/ let context: NSManagedObjectContext
     private let frc: NSFetchedResultsController<Photo>
     
     init(context: NSManagedObjectContext) {

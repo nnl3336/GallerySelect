@@ -88,7 +88,7 @@ struct ContentView: View {
                 
                 if let index = selectedIndex {
                     PhotoSliderView(
-                        photos: controller.photos.compactMap { $0.imageData }.map { UIImage(data: $0)! },
+                        fetchController: controller, // ← PhotoController / PhotoFetchController を渡す
                         selectedIndex: index,
                         onClose: { selectedIndex = nil }
                     )

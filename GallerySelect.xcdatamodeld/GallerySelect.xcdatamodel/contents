@@ -9,6 +9,8 @@
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="imageData" optional="YES" attributeType="Binary"/>
         <attribute name="imageURL" optional="YES" attributeType="String"/>
+        <attribute name="isLiked" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="modificationDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="note" optional="YES" attributeType="String"/>
     </entity>
 </model>

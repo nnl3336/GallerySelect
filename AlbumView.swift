@@ -7,49 +7,98 @@
 
 import SwiftUI
 
+struct FolderListView: View {
+    @ObservedObject var controller: PhotoController
+    @State private var selectedFolder: Folder? = nil
+
+    let columns = [
+        GridItem(.flexible()),
+        GridItem(.flexible())
+    ]
+
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 10) {
+                    ForEach(controller.folders, id: \.self) { folder in
+                        NavigationLink(destination: AlbumView(folder: folder, controller: controller)) {
+                            ZStack {
+                                Color.gray.opacity(0.3)
+                                    .cornerRadius(8)
+                                Text(folder.name ?? "無名")
+                                    .foregroundColor(.black)
+                                    .padding()
+                            }
+                            .frame(height: 100)
+                        }
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("フォルダ一覧")
+        }
+    }
+}
+
+
 // MARK: - AlbumView（仮）
 struct AlbumView: View {
+    var folder: Folder
     @ObservedObject var controller: PhotoController
-    
-    // 画像キャッシュ用
-    @State private var imageCache: [Int: UIImage] = [:]
-    
+    @State private var selectedIndex: Int? = nil
+
     let columns = [
         GridItem(.flexible()),
         GridItem(.flexible()),
         GridItem(.flexible())
     ]
-    
+
     var body: some View {
-        ScrollView {
-            LazyVGrid(columns: columns, spacing: 10) {
-                ForEach(controller.photos.indices, id: \.self) { index in
-                    PhotoCell(photo: controller.photos[index], cachedImage: cachedImage(for: index))
-                        .frame(height: 100)
-                        .clipped()
-                        .cornerRadius(8)
-                        .onTapGesture {
-                            print("写真 \(index) タップ")
-                            // 必要なら選択やスライダー表示を追加
+        ZStack {
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 10) {
+                    ForEach(folder.photosArray.indices, id: \.self) { index in
+                        let photo = folder.photosArray[index]
+                        if let data = photo.imageData,
+                           let uiImage = UIImage(data: data) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(height: 100)
+                                .clipped()
+                                .cornerRadius(8)
+                                .onTapGesture {
+                                    selectedIndex = index
+                                }
                         }
+                    }
                 }
+                .padding()
             }
-            .padding()
+            .navigationTitle(folder.name ?? "フォルダ")
+
+            // スライダー表示
+            if let index = selectedIndex {
+                PhotoSliderView(
+                    fetchController: controller,
+                    selectedIndex: index,
+                    onClose: { selectedIndex = nil }
+                )
+                .zIndex(1)
+            }
         }
-        .navigationTitle("アルバム")
-    }
-    
-    // キャッシュを利用して UIImage を取得
-    private func cachedImage(for index: Int) -> UIImage {
-        if let img = imageCache[index] { return img }
-        if let data = controller.photos[index].imageData,
-           let img = UIImage(data: data) {
-            imageCache[index] = img
-            return img
-        }
-        return UIImage()
     }
 }
+
+extension Folder {
+    // NSSet を配列に変換して、作成日順でソート
+    var photosArray: [Photo] {
+        (photos?.allObjects as? [Photo])?.sorted {
+            $0.creationDate ?? Date() < $1.creationDate ?? Date()
+        } ?? []
+    }
+}
+
 
 // 写真セルを別Viewに切り出し
 struct PhotoCell: View {

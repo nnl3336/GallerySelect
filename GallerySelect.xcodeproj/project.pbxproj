@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1869D0CE2E53443A002C028F /* FolderSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1869D0CD2E53443A002C028F /* FolderSheetView.swift */; };
 		188981272E4F301400D6539F /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 188981262E4F301400D6539F /* ContentView.swift */; };
 		18A62A212E50544900AFC31A /* GallerySelect.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 18A62A1D2E50544900AFC31A /* GallerySelect.xcdatamodeld */; };
 		18A62A2E2E50552500AFC31A /* PhotoSliderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18A62A2D2E50552500AFC31A /* PhotoSliderView.swift */; };
@@ -37,6 +38,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		1869D0CD2E53443A002C028F /* FolderSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderSheetView.swift; sourceTree = "<group>"; };
 		1889811C2E4F301400D6539F /* GallerySelect.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GallerySelect.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		188981262E4F301400D6539F /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		188981322E4F301600D6539F /* GallerySelectTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GallerySelectTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -104,6 +106,7 @@
 				18F54CAD2E51F1ED00D337E5 /* SearchView.swift */,
 				18F54CB22E52E12F00D337E5 /* AlbumView.swift */,
 				18F54CA12E50C2A400D337E5 /* GallerySelectApp.swift */,
+				1869D0CD2E53443A002C028F /* FolderSheetView.swift */,
 				18F54CBA2E52E69400D337E5 /* - */,
 				18A62A1D2E50544900AFC31A /* GallerySelect.xcdatamodeld */,
 				1889811E2E4F301400D6539F /* GallerySelect */,
@@ -285,6 +288,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1869D0CE2E53443A002C028F /* FolderSheetView.swift in Sources */,
 				188981272E4F301400D6539F /* ContentView.swift in Sources */,
 				18F54CB52E52E26400D337E5 /* extension .swift in Sources */,
 				18A62A212E50544900AFC31A /* GallerySelect.xcdatamodeld in Sources */,

@@ -40,31 +40,39 @@ class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDel
         } catch {
             print("Fetch error: \(error)")
         }
+        
+        fetchFolders() // ←追加
+
     }
+    
+    func fetchFolders() {
+        let request: NSFetchRequest<Folder> = Folder.fetchRequest()
+        request.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
+        
+        do {
+            folders = try context.fetch(request)
+        } catch {
+            print("Folder fetch error: \(error)")
+        }
+    }
+
     
     // フォルダ作成メソッド
     func createFolder(with selectedIndices: Set<Int>, name: String) {
-        // 新しい Folder を Core Data で作成
-        let newFolder = Folder(context: context) // ← context 必須
+        let newFolder = Folder(context: context)
         newFolder.name = name
         
-        // 選択された写真を取得
-        var selectedPhotos = selectedIndices.compactMap { index in
+        let selectedPhotos = selectedIndices.compactMap { index in
             photos.indices.contains(index) ? photos[index] : nil
         }
-        
-        // Folder の photos リレーションに追加
         newFolder.addToPhotos(NSSet(array: selectedPhotos))
         
-        // 保存
         do {
             try context.save()
+            fetchFolders() // ←ここで folders を更新
         } catch {
             print("フォルダ保存エラー: \(error)")
         }
-        
-        // 選択解除
-        selectedPhotos.removeAll()
     }
 
     

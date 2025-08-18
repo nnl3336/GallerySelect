@@ -30,7 +30,7 @@ struct ContentView: View {
                 case .photos:
                     MainView(controller: controller)
                 case .albums:
-                    AlbumView(controller: controller)
+                    FolderListView(controller: controller)
                 }
             }
             .transition(.opacity)
@@ -289,9 +289,11 @@ struct MainView: View {
                 }
             }
             .sheet(isPresented: $showFolderSheet) {
-                FolderSheetView(isPresented: $showFolderSheet, selectedPhotos: $selectedPhotos) { selectedPhotos, name in
-                    // CoreData に保存
-                }
+                FolderSheetView(
+                    isPresented: $showFolderSheet,
+                    selectedPhotos: $selectedPhotos,
+                    photos: selectedPhotos.map { controller.photos[$0] } // 選択写真を配列で渡す
+                )
             }
             .fullScreenCover(isPresented: $showSearch) {
                 SearchView(controller: controller, isPresented: $showSearch)
@@ -358,7 +360,7 @@ struct FloatingButtonPanel: View {
     var body: some View {
         VStack { Spacer()
             HStack {
-                NavigationLink(destination: AlbumView(controller: controller)) {
+                NavigationLink(destination: FolderListView(controller: controller)) {
                     Image(systemName: "photo.on.rectangle")
                         .floatingStyle(color: .blue)
                 }
@@ -397,73 +399,7 @@ extension View {
 //
 
 
-// MARK: - Folder
 
-struct FolderSheetView: View {
-    @Binding var isPresented: Bool
-    @Binding var selectedPhotos: Set<Int>
-    @State private var folderName = ""
-    @FocusState private var isTextFieldFocused: Bool   // ← フォーカス管理
-    
-    var onCreate: (_ selected: Set<Int>, _ name: String) -> Void
-    
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.5)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    isPresented = false
-                    folderName = ""
-                }
-            
-            VStack(spacing: 20) {
-                Text("新しいフォルダ名を入力")
-                    .font(.headline)
-                
-                TextField("フォルダ名", text: $folderName)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .padding(.horizontal)
-                    .focused($isTextFieldFocused)  // ←ここでフォーカス
-                    .onSubmit {
-                        createFolder()
-                    }
-                
-                HStack {
-                    Button("キャンセル") {
-                        isPresented = false
-                        folderName = ""
-                    }
-                    Spacer()
-                    Button("作成") {
-                        createFolder()
-                    }
-                }
-                .padding(.horizontal)
-                
-                Spacer()
-            }
-            .padding()
-            .frame(height: 250)
-            .background(Color(UIColor.systemBackground))
-            .cornerRadius(16)
-            .padding(.horizontal, 20)
-        }
-        .animation(.easeInOut, value: isPresented)
-        .onAppear {
-            // シート表示時に自動でフォーカス
-            DispatchQueue.main.async {
-                isTextFieldFocused = true
-            }
-        }
-    }
-    
-    private func createFolder() {
-        onCreate(selectedPhotos, folderName)
-        selectedPhotos.removeAll()
-        folderName = ""
-        isPresented = false
-    }
-}
 
 
 // MARK: - PhotoPicker

@@ -17,135 +17,48 @@ import SwiftUI
 import Photos
 
 // MARK: - SwiftUI ContentView
-// MARK: - SwiftUI ContentView
 struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
-    @StateObject private var controller: PhotoController
     
-    @State private var showPicker = false
-    @State private var selectedIndex: Int? = nil
-    @State private var showSearch = false   // ← 検索画面表示用
-    @State private var showAlbum = false    // ← アルバム画面表示用
-    
-    let columns = [
-        GridItem(.flexible()),
-        GridItem(.flexible()),
-        GridItem(.flexible())
-    ]
-    
-    init(context: NSManagedObjectContext) {
-        _controller = StateObject(wrappedValue: PhotoController(context: context))
-    }
-    
+    @ObservedObject var controller: PhotoController
+    @State private var currentScreen: AppScreen = .photos
+
     var body: some View {
-        NavigationView {
-            ZStack {
-                VStack {
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            LazyVGrid(columns: columns, spacing: 10) {
-                                ForEach(controller.photos.indices, id: \.self) { index in
-                                    if let imageData = controller.photos[index].imageData,
-                                       let uiImage = UIImage(data: imageData) {
-                                        Image(uiImage: uiImage)
-                                            .resizable()
-                                            .scaledToFill()
-                                            .frame(height: 100)
-                                            .clipped()
-                                            .cornerRadius(8)
-                                            .id(index)
-                                            .onTapGesture {
-                                                selectedIndex = index
-                                            }
-                                            .contextMenu {
-                                                Button {
-                                                    controller.saveImageToCameraRoll(uiImage)
-                                                } label: {
-                                                    Label("保存", systemImage: "square.and.arrow.down")
-                                                }
-                                                
-                                                Button(role: .destructive) {
-                                                    controller.deletePhoto(at: index)
-                                                } label: {
-                                                    Label("削除", systemImage: "trash")
-                                                }
-                                            }
-                                    }
-                                }
-                            }
-                            .padding()
-                        }
-                        .onAppear {
-                            if let lastIndex = controller.photos.indices.last {
-                                proxy.scrollTo(lastIndex, anchor: .bottom)
-                            }
-                        }
-                    }
-                    
-                    Button("写真を選択") {
-                        showPicker = true
-                    }
-                    .padding()
-                }
-                
-                // フルスクリーンのスライダー
-                if let index = selectedIndex {
-                    PhotoSliderView(
-                        fetchController: controller,
-                        selectedIndex: index,
-                        onClose: { selectedIndex = nil }
-                    )
-                    .zIndex(1)
-                }
-                
-                // 🔹 右下・左下にフローティングボタン配置
-                VStack {
-                    Spacer()
-                    HStack {
-                        // 左下：アルバム切り替えボタン
-                        Button(action: { showAlbum = true }) {
-                            Image(systemName: "photo.on.rectangle")
-                                .font(.system(size: 28))
-                                .foregroundColor(.white)
-                                .padding()
-                                .background(Color.blue)
-                                .clipShape(Circle())
-                                .shadow(radius: 5)
-                        }
-                        Spacer()
-                        // 右下：検索ボタン
-                        Button(action: { showSearch = true }) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 28))
-                                .foregroundColor(.white)
-                                .padding()
-                                .background(Color.green)
-                                .clipShape(Circle())
-                                .shadow(radius: 5)
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 30)
+        ZStack(alignment: .bottom) {
+            Group {
+                switch currentScreen {
+                case .photos:
+                    MainView(controller: controller)
+                case .albums:
+                    AlbumView(controller: controller)
                 }
             }
-            .navigationTitle("写真")
-            .sheet(isPresented: $showPicker) {
-                PhotoPicker { images, assets in
-                    for (i, image) in images.enumerated() {
-                        let creationDate = (i < assets.count) ? assets[i].creationDate ?? Date() : Date()
-                        controller.addPhoto(image, creationDate: creationDate)
-                    }
+            .transition(.opacity)
+
+            // 画面下の切り替えボタン
+            HStack {
+                Button {
+                    withAnimation { currentScreen = .photos }
+                } label: {
+                    Label("写真", systemImage: "photo")
+                        .padding()
+                }
+
+                Spacer()
+
+                Button {
+                    withAnimation { currentScreen = .albums }
+                } label: {
+                    Label("アルバム", systemImage: "rectangle.stack")
+                        .padding()
                 }
             }
-            .fullScreenCover(isPresented: $showSearch) {
-                SearchView(controller: controller, isPresented: $showSearch)
-            }
-            .fullScreenCover(isPresented: $showAlbum) {
-                AlbumView(controller: controller, isPresented: $showAlbum) // ← 仮のアルバム画面
-            }
+            .padding()
+            .background(.ultraThinMaterial)
         }
     }
 }
+
 // MARK: - FRCラッパークラス
 /*class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDelegate {
     @Published var photos: [Photo] = []
@@ -283,7 +196,141 @@ extension ContentView {
     }
 }
 
+// MARK: - SwiftUI MainView
+struct MainView: View {
+    @ObservedObject var controller: PhotoController
+    @State private var selectedIndex: Int? = nil
+    @State private var showPicker = false
+    @State private var showSearch = false
+    @State private var showAlbum = false
+
+    let columns = [
+        GridItem(.flexible()),
+        GridItem(.flexible()),
+        GridItem(.flexible())
+    ]
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                // 背景の写真グリッド
+                VStack {
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVGrid(columns: columns, spacing: 10) {
+                                ForEach(controller.photos.indices, id: \.self) { index in
+                                    if let imageData = controller.photos[index].imageData,
+                                       let uiImage = UIImage(data: imageData) {
+                                        Image(uiImage: uiImage)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(height: 100)
+                                            .clipped()
+                                            .cornerRadius(8)
+                                            .id(index)
+                                            .onTapGesture {
+                                                selectedIndex = index
+                                            }
+                                            .contextMenu {
+                                                Button {
+                                                    controller.saveImageToCameraRoll(uiImage)
+                                                } label: {
+                                                    Label("保存", systemImage: "square.and.arrow.down")
+                                                }
+                                                Button(role: .destructive) {
+                                                    controller.deletePhoto(at: index)
+                                                } label: {
+                                                    Label("削除", systemImage: "trash")
+                                                }
+                                            }
+                                    }
+                                }
+                            }
+                            .padding()
+                        }
+                    }
+                }
+                
+                // 写真スライダー
+                if let index = selectedIndex {
+                    PhotoSliderView(
+                        fetchController: controller,
+                        selectedIndex: index,
+                        onClose: { selectedIndex = nil }
+                    )
+                    .zIndex(1)
+                }
+
+                // フローティングボタン群
+                VStack {
+                    Spacer()
+                    HStack {
+                        // 左下：アルバム
+                        NavigationLink(destination: AlbumView(controller: controller)) {
+                            Image(systemName: "photo.on.rectangle")
+                                .font(.title)
+                                .padding()
+                                .background(Color.blue.opacity(0.8))
+                                .foregroundColor(.white)
+                                .clipShape(Circle())
+                                .shadow(radius: 4)
+                        }
+                        .padding(.leading, 20)
+
+                        Spacer()
+
+                        // 右下：検索
+                        Button {
+                            showSearch = true
+                        } label: {
+                            Image(systemName: "magnifyingglass")
+                                .font(.title)
+                                .padding()
+                                .background(Color.green.opacity(0.8))
+                                .foregroundColor(.white)
+                                .clipShape(Circle())
+                                .shadow(radius: 4)
+                        }
+                        .padding(.trailing, 20)
+                        
+                        // 右下：写真追加ボタン
+                        Button {
+                            showPicker = true
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.title)
+                                .padding()
+                                .background(Color.orange.opacity(0.8))
+                                .foregroundColor(.white)
+                                .clipShape(Circle())
+                                .shadow(radius: 4)
+                        }
+                        .padding(.trailing, 20)
+                    }
+                    .padding(.bottom, 30)
+                }
+            }
+            .navigationTitle("写真")
+            .sheet(isPresented: $showPicker) {
+                PhotoPicker { images, assets in
+                    for (i, image) in images.enumerated() {
+                        let creationDate = (i < assets.count) ? assets[i].creationDate ?? Date() : Date()
+                        controller.addPhoto(image, creationDate: creationDate)
+                    }
+                }
+            }
+            .fullScreenCover(isPresented: $showSearch) {
+                SearchView(controller: controller, isPresented: $showSearch)
+            }
+            .fullScreenCover(isPresented: $showAlbum) {
+                AlbumView(controller: controller) // ← 仮のアルバム画面
+            }
+        }
+    }
+}
+
 //
+
 
 // MARK: - PhotoPicker
 

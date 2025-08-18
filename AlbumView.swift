@@ -10,33 +10,28 @@ import SwiftUI
 // MARK: - AlbumView（仮）
 struct AlbumView: View {
     @ObservedObject var controller: PhotoController
-    @Binding var isPresented: Bool
     
     var body: some View {
-        NavigationView {
-            List {
+        ScrollView {
+            LazyVGrid(columns: [
+                GridItem(.flexible()),
+                GridItem(.flexible()),
+                GridItem(.flexible())
+            ], spacing: 10) {
                 ForEach(controller.photos.indices, id: \.self) { index in
                     if let imageData = controller.photos[index].imageData,
                        let uiImage = UIImage(data: imageData) {
-                        HStack {
-                            Image(uiImage: uiImage)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 60, height: 60)
-                                .clipped()
-                                .cornerRadius(8)
-                            
-                            Text(controller.photos[index].note ?? "キャプションなし")
-                        }
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(height: 100)
+                            .clipped()
+                            .cornerRadius(8)
                     }
                 }
             }
-            .navigationTitle("アルバム")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("閉じる") { isPresented = false }
-                }
-            }
+            .padding()
         }
+        .navigationTitle("アルバム")
     }
 }

@@ -8,38 +8,74 @@
 import SwiftUI
 
 struct SearchView: View {
-    var controller: PhotoController        // ← @ObservedObject じゃなくてOK
+    var controller: PhotoController
     @Binding var isPresented: Bool
     
     @State private var keyword = ""
     @State private var showLikedOnly = false
     
     var body: some View {
-        NavigationView {
-            VStack {
+        ZStack {
+            // 背景の薄黒
+            Color.black.opacity(0.5)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    // 背景タップで閉じる
+                    isPresented = false
+                }
+            
+            // メインの検索パネル
+            VStack(spacing: 20) {
+                HStack {
+                    Text("検索")
+                        .font(.headline)
+                    Spacer()
+                    Button(action: { isPresented = false }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.white)
+                    }
+                }
+                .padding()
+                
                 TextField("検索ワードを入力", text: $keyword)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .padding()
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+                    .submitLabel(.search)
+                    .onSubmit {
+                        applyFilter()
+                    }
+                    .padding(.horizontal)
                 
                 Toggle("いいねのみ表示", isOn: $showLikedOnly)
-                    .padding()
+                    .padding(.horizontal)
+                
+                Button(action: {
+                    applyFilter()
+                }) {
+                    Text("適用")
+                        .fontWeight(.bold)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                }
+                .padding(.horizontal)
                 
                 Spacer()
             }
-            .navigationTitle("検索")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("閉じる") {
-                        isPresented = false
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("適用") {
-                        controller.applyFilter(keyword: keyword, likedOnly: showLikedOnly)
-                        isPresented = false
-                    }
-                }
-            }
+            .padding()
+            .background(Color(UIColor.systemBackground))
+            .cornerRadius(16)
+            .padding(.horizontal, 20)
         }
+        .animation(.easeInOut, value: isPresented)
+    }
+    
+    private func applyFilter() {
+        controller.applyFilter(keyword: keyword, likedOnly: showLikedOnly)
+        isPresented = false
     }
 }

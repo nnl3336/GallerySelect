@@ -44,21 +44,29 @@ class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDel
     
     // フォルダ作成メソッド
     func createFolder(with selectedIndices: Set<Int>, name: String) {
+        // 新しい Folder を Core Data で作成
+        let newFolder = Folder(context: context) // ← context 必須
+        newFolder.name = name
+        
         // 選択された写真を取得
-        let selectedPhotos = selectedIndices.compactMap { index in
+        var selectedPhotos = selectedIndices.compactMap { index in
             photos.indices.contains(index) ? photos[index] : nil
         }
         
-        // フォルダ作成（Core Dataや配列にまとめる）
-        let newFolder = Folder(name: name)
-        newFolder.photos = selectedPhotos
+        // Folder の photos リレーションに追加
+        newFolder.addToPhotos(NSSet(array: selectedPhotos))
         
-        // 必要なら Core Data に保存
-        // try? context.save()
+        // 保存
+        do {
+            try context.save()
+        } catch {
+            print("フォルダ保存エラー: \(error)")
+        }
         
         // 選択解除
-        // selectedPhotos.removeAll()
+        selectedPhotos.removeAll()
     }
+
     
     func fetchPhotos(predicate: NSPredicate? = nil) {
             let request: NSFetchRequest<Photo> = Photo.fetchRequest()

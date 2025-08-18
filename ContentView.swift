@@ -235,17 +235,49 @@ struct MainView: View {
                                             .cornerRadius(8)
                                             .id(index)
                                             .onTapGesture {
-                                                if selectedPhotos.contains(index) {
-                                                    selectedPhotos.remove(index)
+                                                if !selectedPhotos.isEmpty {
+                                                    // 選択モード → 選択/解除
+                                                    if selectedPhotos.contains(index) {
+                                                        selectedPhotos.remove(index)
+                                                    } else {
+                                                        selectedPhotos.insert(index)
+                                                    }
                                                 } else {
-                                                    selectedPhotos.insert(index)
+                                                    // 通常モード → スライダー表示
+                                                    selectedIndex = index
                                                 }
                                             }
                                             .overlay(
                                                 selectedPhotos.contains(index) ?
                                                 Color.blue.opacity(0.3).cornerRadius(8) : nil
                                             )
-                                        
+                                            // ここで contextMenu を追加
+                                            .contextMenu {
+                                                Button(action: {
+                                                    if selectedPhotos.contains(index) {
+                                                        selectedPhotos.remove(index)
+                                                    } else {
+                                                        selectedPhotos.insert(index)
+                                                    }
+                                                }) {
+                                                    Text(selectedPhotos.contains(index) ? "選択解除" : "選択")
+                                                    Image(systemName: selectedPhotos.contains(index) ? "circle" : "checkmark.circle")
+                                                }
+                                                
+                                                Button {
+                                                    controller.saveImageToCameraRoll(uiImage)
+                                                } label: {
+                                                    Label("保存", systemImage: "square.and.arrow.down")
+                                                }
+                                                
+                                                Button(action: {
+                                                    controller.deletePhoto(at: index)
+                                                }) {
+                                                    Text("削除")
+                                                    Image(systemName: "trash")
+                                                }
+                                            }
+
                                         if selectedPhotos.contains(index) {
                                             Image(systemName: "checkmark.circle.fill")
                                                 .foregroundColor(.white)
@@ -253,7 +285,8 @@ struct MainView: View {
                                         }
                                     }
                                 }
-                            }                        }
+                            }
+                        }
                         .padding()
                     }
                 }
@@ -270,24 +303,13 @@ struct MainView: View {
 
                 // フローティングボタン群
                 VStack {
-                    // フォルダ作成ボタン
-                    Button {
-                        if !selectedPhotos.isEmpty {
-                            showFolderSheet = true   // シートを表示
-                        }
-                    } label: {
-                        Image(systemName: "folder.badge.plus")
-                            .font(.title)
-                            .padding()
-                            .background(Color.purple.opacity(0.8))
-                            .foregroundColor(.white)
-                            .clipShape(Circle())
-                            .shadow(radius: 4)
-                    }
+                    
 
                     
                     Spacer()
+                    
                     HStack {
+                        
                         // 左下：アルバム
                         NavigationLink(destination: AlbumView(controller: controller)) {
                             Image(systemName: "photo.on.rectangle")
@@ -300,6 +322,21 @@ struct MainView: View {
                         }
                         .padding(.leading, 20)
 
+                        // フォルダ作成ボタン
+                        Button {
+                            if !selectedPhotos.isEmpty {
+                                showFolderSheet = true   // シートを表示
+                            }
+                        } label: {
+                            Image(systemName: "folder.badge.plus")
+                                .font(.title)
+                                .padding()
+                                .background(Color.purple.opacity(0.8))
+                                .foregroundColor(.white)
+                                .clipShape(Circle())
+                                .shadow(radius: 4)
+                        }
+                        
                         Spacer()
 
                         // 右下：検索
@@ -343,31 +380,13 @@ struct MainView: View {
                 }
             }
             .sheet(isPresented: $showFolderSheet) {
-                VStack(spacing: 20) {
-                    Text("新しいフォルダ名を入力")
-                        .font(.headline)
-                    
-                    TextField("フォルダ名", text: $newFolderName)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .padding(.horizontal)
-                    
-                    HStack {
-                        Button("キャンセル") {
-                            showFolderSheet = false
-                            newFolderName = ""
-                        }
-                        Spacer()
-                        Button("作成") {
-                            controller.createFolder(with: selectedPhotos, name: newFolderName)
-                            selectedPhotos.removeAll()
-                            newFolderName = ""
-                            showFolderSheet = false
-                        }
-                    }
-                    .padding(.horizontal)
-                    Spacer()
+                FolderSheetView(
+                    isPresented: $showFolderSheet,
+                    selectedPhotos: $selectedPhotos
+                ) { selectedPhotos, name in
+                    // CoreData に保存する処理
+                    //print("作成: \(name), 写真: \(selectedPhotos)")
                 }
-                .padding()
             }
 
             .fullScreenCover(isPresented: $showSearch) {
@@ -381,6 +400,60 @@ struct MainView: View {
 }
 
 //
+
+
+// MARK: - Folder
+
+struct FolderSheetView: View {
+    @Binding var isPresented: Bool
+    @Binding var selectedPhotos: Set<Int>
+    @State private var folderName = ""
+    
+    var onCreate: (_ selected: Set<Int>, _ name: String) -> Void
+    
+    var body: some View {
+        ZStack {
+            // 背景の半透明レイヤー
+            Color.black.opacity(0.5)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    isPresented = false
+                }
+            
+            // フォルダ作成シート本体
+            VStack(spacing: 20) {
+                Text("新しいフォルダ名を入力")
+                    .font(.headline)
+                
+                TextField("フォルダ名", text: $folderName)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .padding(.horizontal)
+                
+                HStack {
+                    Button("キャンセル") {
+                        isPresented = false
+                        folderName = ""
+                    }
+                    Spacer()
+                    Button("作成") {
+                        onCreate(selectedPhotos, folderName)
+                        selectedPhotos.removeAll()
+                        folderName = ""
+                        isPresented = false
+                    }
+                }
+                .padding(.horizontal)
+                Spacer()
+            }
+            .padding()
+            .frame(height: 250)
+            .background(Color(UIColor.systemBackground))
+            .cornerRadius(16)
+            .padding(.horizontal, 20)
+        }
+        .animation(.easeInOut, value: isPresented)
+    }
+}
 
 
 // MARK: - PhotoPicker

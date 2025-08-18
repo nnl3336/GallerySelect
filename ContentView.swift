@@ -270,6 +270,16 @@ struct MainView: View {
                 )
             }
             .navigationTitle("写真")
+            .toolbar {
+                // 選択モード中のみ Cancel ボタン
+                if !selectedPhotos.isEmpty {
+                    ToolbarItem(placement: .bottomBar) {
+                        Button("Cancel") {
+                            selectedPhotos.removeAll()
+                        }
+                    }
+                }
+            }
             .sheet(isPresented: $showPicker) {
                 PhotoPicker { images, assets in
                     for (i, image) in images.enumerated() {
@@ -287,6 +297,7 @@ struct MainView: View {
                 SearchView(controller: controller, isPresented: $showSearch)
             }
         }
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

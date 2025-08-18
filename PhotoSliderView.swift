@@ -6,17 +6,20 @@
 //
 
 import SwiftUI
+import Combine
 
 struct PhotoSliderView: View {
-    @ObservedObject var fetchController: PhotoController // ←追加
+    @ObservedObject var fetchController: PhotoController
     @State var selectedIndex: Int
     var onClose: () -> Void
 
     @State private var offset = CGSize.zero
-    @State private var saveWorkItem: DispatchWorkItem?
-    
     @State private var localNotes: [Int: String] = [:]
     @State private var localLikes: [Int: Bool] = [:]
+    @State private var cancellables = Set<AnyCancellable>()
+
+    // 保存用 PassthroughSubject
+    private let saveSubject = PassthroughSubject<Int, Never>()
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -25,7 +28,8 @@ struct PhotoSliderView: View {
             TabView(selection: $selectedIndex) {
                 ForEach(fetchController.photos.indices, id: \.self) { index in
                     VStack {
-                        Image(uiImage: UIImage(data: fetchController.photos[index].imageData!)!)
+                        // 画像は事前生成されたサムネイルを使う想定
+                        Image(uiImage: fetchController.photos[index].thumbnail!)
                             .resizable()
                             .scaledToFit()
                             .offset(y: offset.height)
@@ -43,22 +47,29 @@ struct PhotoSliderView: View {
                                         else { withAnimation(.spring()) { offset = .zero } }
                                     }
                             )
-                        
+
                         TextField("キャプションを入力", text: Binding(
-                            get: { localNotes[index] ?? fetchController.photos[index].note ?? "" },
+                            get: { localNotes[index] ?? "" },
                             set: { newValue in
                                 localNotes[index] = newValue
-                                scheduleSave(index: index) // 入力中は非同期で遅延保存
+                                saveSubject.send(index)
                             }
                         ))
+
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .padding(.horizontal)
+                        .onAppear {
+                            if localNotes[index] == nil {
+                                localNotes[index] = fetchController.photos[index].note ?? ""
+                            }
+                        }
 
                         Button(action: {
-                            fetchController.photos[index].isLiked.toggle()
-                            scheduleSave(index: index)
+                            localLikes[index] = !(localLikes[index] ?? fetchController.photos[index].isLiked)
+                            fetchController.photos[index].isLiked = localLikes[index]!
+                            saveSubject.send(index)
                         }) {
-                            Image(systemName: fetchController.photos[index].isLiked ? "heart.fill" : "heart")
+                            Image(systemName: (localLikes[index] ?? fetchController.photos[index].isLiked) ? "heart.fill" : "heart")
                                 .foregroundColor(.red)
                                 .font(.title)
                         }
@@ -71,6 +82,9 @@ struct PhotoSliderView: View {
             .onChange(of: selectedIndex) { oldIndex in
                 saveCaptionAndLike(at: oldIndex)
             }
+            .onAppear {
+                setupDebouncedSave()
+            }
 
             Button(action: saveAndClose) {
                 Image(systemName: "xmark.circle.fill")
@@ -81,13 +95,26 @@ struct PhotoSliderView: View {
         }
     }
 
+    // MARK: - 保存処理
+
+    private func setupDebouncedSave() {
+        saveSubject
+            .debounce(for: .seconds(1), scheduler: RunLoop.main)
+            .sink { index in
+                saveCaptionAndLike(at: index)
+            }
+            .store(in: &cancellables)
+    }
+
     private func saveCaptionAndLike(at index: Int) {
         guard index < fetchController.photos.count else { return }
         let photo = fetchController.photos[index]
+        photo.note = localNotes[index] ?? photo.note
+        photo.isLiked = localLikes[index] ?? photo.isLiked
 
         do {
             try fetchController.context.save()
-            print("保存しました: \(photo.note ?? ""), いいね: \(photo.isLiked) （インデックス \(index)）")
+            print("保存: \(photo.note ?? ""), いいね: \(photo.isLiked) (index \(index))")
         } catch {
             print("保存エラー: \(error)")
         }
@@ -96,12 +123,5 @@ struct PhotoSliderView: View {
     private func saveAndClose() {
         saveCaptionAndLike(at: selectedIndex)
         onClose()
-    }
-
-    private func scheduleSave(index: Int) {
-        saveWorkItem?.cancel()
-        let workItem = DispatchWorkItem { saveCaptionAndLike(at: index) }
-        saveWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 10, execute: workItem)
     }
 }

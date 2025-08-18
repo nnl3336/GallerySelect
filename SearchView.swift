@@ -41,11 +41,8 @@ struct SearchView: View {
                     .autocapitalization(.none)
                     .disableAutocorrection(true)
                     .submitLabel(.search)
-                    .focused($isTextFieldFocused) // ← フォーカス状態に紐付け
-                    .onSubmit {
-                        applyFilter()
-                    }
-                    .padding(.horizontal)
+                    .focused($isTextFieldFocused)
+                    .onSubmit { applyFilter() }
                 
                 Toggle("いいねのみ表示", isOn: $showLikedOnly)
                     .padding(.horizontal)
@@ -78,6 +75,12 @@ struct SearchView: View {
             }
         }
         .animation(.easeInOut, value: isPresented)
+        .onAppear {
+            DispatchQueue.main.async {
+                isTextFieldFocused = true
+            }
+        }
+
     }
     
     private func applyFilter() {

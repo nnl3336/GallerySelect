@@ -36,7 +36,7 @@ struct ContentView: View {
             .transition(.opacity)
 
             // 画面下の切り替えボタン
-            HStack {
+            /*HStack {
                 Button {
                     withAnimation { currentScreen = .photos }
                 } label: {
@@ -54,7 +54,7 @@ struct ContentView: View {
                 }
             }
             .padding()
-            .background(.ultraThinMaterial)
+            .background(.ultraThinMaterial)*/
         }
     }
 }
@@ -213,45 +213,43 @@ struct MainView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                // 背景の写真グリッド
-                VStack {
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            LazyVGrid(columns: columns, spacing: 10) {
-                                ForEach(controller.photos.indices, id: \.self) { index in
-                                    if let imageData = controller.photos[index].imageData,
-                                       let uiImage = UIImage(data: imageData) {
-                                        Image(uiImage: uiImage)
-                                            .resizable()
-                                            .scaledToFill()
-                                            .frame(height: 100)
-                                            .clipped()
-                                            .cornerRadius(8)
-                                            .id(index)
-                                            .onTapGesture {
-                                                selectedIndex = index
+                // 背景グリッド
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVGrid(columns: columns, spacing: 10) {
+                            ForEach(controller.photos.indices, id: \.self) { index in
+                                if let imageData = controller.photos[index].imageData,
+                                   let uiImage = UIImage(data: imageData) {
+                                    Image(uiImage: uiImage)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(height: 100)
+                                        .clipped()
+                                        .cornerRadius(8)
+                                        .id(index)
+                                        .onTapGesture {
+                                            selectedIndex = index
+                                        }
+                                        .contextMenu {
+                                            Button {
+                                                controller.saveImageToCameraRoll(uiImage)
+                                            } label: {
+                                                Label("保存", systemImage: "square.and.arrow.down")
                                             }
-                                            .contextMenu {
-                                                Button {
-                                                    controller.saveImageToCameraRoll(uiImage)
-                                                } label: {
-                                                    Label("保存", systemImage: "square.and.arrow.down")
-                                                }
-                                                Button(role: .destructive) {
-                                                    controller.deletePhoto(at: index)
-                                                } label: {
-                                                    Label("削除", systemImage: "trash")
-                                                }
+                                            Button(role: .destructive) {
+                                                controller.deletePhoto(at: index)
+                                            } label: {
+                                                Label("削除", systemImage: "trash")
                                             }
-                                    }
+                                        }
                                 }
                             }
-                            .padding()
                         }
+                        .padding()
                     }
                 }
-                
-                // 写真スライダー
+
+                // フルスクリーンスライダー
                 if let index = selectedIndex {
                     PhotoSliderView(
                         fetchController: controller,
@@ -292,8 +290,8 @@ struct MainView: View {
                                 .shadow(radius: 4)
                         }
                         .padding(.trailing, 20)
-                        
-                        // 右下：写真追加ボタン
+
+                        // 右下：写真追加
                         Button {
                             showPicker = true
                         } label: {

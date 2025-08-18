@@ -14,6 +14,9 @@ struct PhotoSliderView: View {
 
     @State private var offset = CGSize.zero
     @State private var saveWorkItem: DispatchWorkItem?
+    
+    @State private var localNotes: [Int: String] = [:]
+    @State private var localLikes: [Int: Bool] = [:]
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -40,12 +43,12 @@ struct PhotoSliderView: View {
                                         else { withAnimation(.spring()) { offset = .zero } }
                                     }
                             )
-
+                        
                         TextField("キャプションを入力", text: Binding(
-                            get: { fetchController.photos[index].note ?? "" },
+                            get: { localNotes[index] ?? fetchController.photos[index].note ?? "" },
                             set: { newValue in
-                                fetchController.photos[index].note = newValue
-                                scheduleSave(index: index)
+                                localNotes[index] = newValue
+                                scheduleSave(index: index) // 入力中は非同期で遅延保存
                             }
                         ))
                         .textFieldStyle(RoundedBorderTextFieldStyle())

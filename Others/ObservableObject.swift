@@ -12,6 +12,7 @@ import Photos
 // MARK: - FRCラッパークラス
 class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDelegate {
     @Published var photos: [Photo] = []
+    @Published var folders: [Folder] = []
     
     /*private*/ let context: NSManagedObjectContext
     private let frc: NSFetchedResultsController<Photo>
@@ -39,6 +40,24 @@ class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDel
         } catch {
             print("Fetch error: \(error)")
         }
+    }
+    
+    // フォルダ作成メソッド
+    func createFolder(with selectedIndices: Set<Int>, name: String) {
+        // 選択された写真を取得
+        let selectedPhotos = selectedIndices.compactMap { index in
+            photos.indices.contains(index) ? photos[index] : nil
+        }
+        
+        // フォルダ作成（Core Dataや配列にまとめる）
+        let newFolder = Folder(name: name)
+        newFolder.photos = selectedPhotos
+        
+        // 必要なら Core Data に保存
+        // try? context.save()
+        
+        // 選択解除
+        // selectedPhotos.removeAll()
     }
     
     func fetchPhotos(predicate: NSPredicate? = nil) {

@@ -214,6 +214,8 @@ struct MainView: View {
     @State private var showFolderAlert = false
     @State private var newFolderName = ""
 
+    @State private var showFolderSheet = false
+
     var body: some View {
         NavigationView {
             ZStack {
@@ -268,6 +270,21 @@ struct MainView: View {
 
                 // フローティングボタン群
                 VStack {
+                    // フォルダ作成ボタン
+                    Button {
+                        if !selectedPhotos.isEmpty {
+                            showFolderSheet = true   // シートを表示
+                        }
+                    } label: {
+                        Image(systemName: "folder.badge.plus")
+                            .font(.title)
+                            .padding()
+                            .background(Color.purple.opacity(0.8))
+                            .foregroundColor(.white)
+                            .clipShape(Circle())
+                            .shadow(radius: 4)
+                    }
+
                     
                     Spacer()
                     HStack {
@@ -325,6 +342,34 @@ struct MainView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showFolderSheet) {
+                VStack(spacing: 20) {
+                    Text("新しいフォルダ名を入力")
+                        .font(.headline)
+                    
+                    TextField("フォルダ名", text: $newFolderName)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .padding(.horizontal)
+                    
+                    HStack {
+                        Button("キャンセル") {
+                            showFolderSheet = false
+                            newFolderName = ""
+                        }
+                        Spacer()
+                        Button("作成") {
+                            controller.createFolder(with: selectedPhotos, name: newFolderName)
+                            selectedPhotos.removeAll()
+                            newFolderName = ""
+                            showFolderSheet = false
+                        }
+                    }
+                    .padding(.horizontal)
+                    Spacer()
+                }
+                .padding()
+            }
+
             .fullScreenCover(isPresented: $showSearch) {
                 SearchView(controller: controller, isPresented: $showSearch)
             }

@@ -8,14 +8,15 @@
 import SwiftUI
 
 struct PhotoSliderView: View {
-    @ObservedObject var fetchController: PhotoController
+    @ObservedObject var fetchController: PhotoController // ←追加
     @State var selectedIndex: Int
     var onClose: () -> Void
 
     @State private var offset = CGSize.zero
-    @State private var currentNote: String = ""
-    @State private var currentLiked: Bool = false
     @State private var saveWorkItem: DispatchWorkItem?
+    
+    @State private var localNotes: [Int: String] = [:]
+    @State private var localLikes: [Int: Bool] = [:]
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -23,9 +24,8 @@ struct PhotoSliderView: View {
 
             TabView(selection: $selectedIndex) {
                 ForEach(fetchController.photos.indices, id: \.self) { index in
-                    let photo = fetchController.photos[index]
                     VStack {
-                        Image(uiImage: UIImage(data: photo.imageData!)!)
+                        Image(uiImage: UIImage(data: fetchController.photos[index].imageData!)!)
                             .resizable()
                             .scaledToFit()
                             .offset(y: offset.height)
@@ -43,39 +43,33 @@ struct PhotoSliderView: View {
                                         else { withAnimation(.spring()) { offset = .zero } }
                                     }
                             )
-
+                        
                         TextField("キャプションを入力", text: Binding(
-                            get: { index == selectedIndex ? currentNote : photo.note ?? "" },
+                            get: { localNotes[index] ?? fetchController.photos[index].note ?? "" },
                             set: { newValue in
-                                if index == selectedIndex { currentNote = newValue }
-                                scheduleSave()
+                                localNotes[index] = newValue
+                                scheduleSave(index: index) // 入力中は非同期で遅延保存
                             }
                         ))
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .padding(.horizontal)
 
                         Button(action: {
-                            if index == selectedIndex { currentLiked.toggle() }
-                            scheduleSave()
+                            fetchController.photos[index].isLiked.toggle()
+                            scheduleSave(index: index)
                         }) {
-                            Image(systemName: (index == selectedIndex ? currentLiked : photo.isLiked) ? "heart.fill" : "heart")
+                            Image(systemName: fetchController.photos[index].isLiked ? "heart.fill" : "heart")
                                 .foregroundColor(.red)
                                 .font(.title)
                         }
                         .padding(.bottom)
                     }
                     .tag(index)
-                    .onAppear {
-                        if index == selectedIndex {
-                            currentNote = photo.note ?? ""
-                            currentLiked = photo.isLiked
-                        }
-                    }
                 }
             }
             .tabViewStyle(PageTabViewStyle(indexDisplayMode: .always))
-            .onChange(of: selectedIndex) { _ in
-                savePhoto()
+            .onChange(of: selectedIndex) { oldIndex in
+                saveCaptionAndLike(at: oldIndex)
             }
 
             Button(action: saveAndClose) {
@@ -87,31 +81,27 @@ struct PhotoSliderView: View {
         }
     }
 
-    private func savePhoto() {
-        guard fetchController.photos.indices.contains(selectedIndex) else { return }
-        let photo = fetchController.photos[selectedIndex]
-        photo.note = currentNote
-        photo.isLiked = currentLiked
+    private func saveCaptionAndLike(at index: Int) {
+        guard index < fetchController.photos.count else { return }
+        let photo = fetchController.photos[index]
 
-        DispatchQueue.global(qos: .background).async {
-            do {
-                try fetchController.context.save()
-                print("保存しました: \(photo.note ?? ""), いいね: \(photo.isLiked)")
-            } catch {
-                print("保存エラー: \(error)")
-            }
+        do {
+            try fetchController.context.save()
+            print("保存しました: \(photo.note ?? ""), いいね: \(photo.isLiked) （インデックス \(index)）")
+        } catch {
+            print("保存エラー: \(error)")
         }
     }
 
     private func saveAndClose() {
-        savePhoto()
+        saveCaptionAndLike(at: selectedIndex)
         onClose()
     }
 
-    private func scheduleSave() {
+    private func scheduleSave(index: Int) {
         saveWorkItem?.cancel()
-        let workItem = DispatchWorkItem { savePhoto() }
+        let workItem = DispatchWorkItem { saveCaptionAndLike(at: index) }
         saveWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: workItem)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10, execute: workItem)
     }
 }

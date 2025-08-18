@@ -17,6 +17,7 @@ import SwiftUI
 import Photos
 
 // MARK: - SwiftUI ContentView
+// MARK: - SwiftUI ContentView
 struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @StateObject private var controller: PhotoController
@@ -24,6 +25,7 @@ struct ContentView: View {
     @State private var showPicker = false
     @State private var selectedIndex: Int? = nil
     @State private var showSearch = false   // ← 検索画面表示用
+    @State private var showAlbum = false    // ← アルバム画面表示用
     
     let columns = [
         GridItem(.flexible()),
@@ -86,25 +88,47 @@ struct ContentView: View {
                     .padding()
                 }
                 
+                // フルスクリーンのスライダー
                 if let index = selectedIndex {
                     PhotoSliderView(
-                        fetchController: controller, // ← PhotoController / PhotoFetchController を渡す
+                        fetchController: controller,
                         selectedIndex: index,
                         onClose: { selectedIndex = nil }
                     )
                     .zIndex(1)
                 }
-            }
-            .navigationTitle("写真")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        showSearch = true
-                    } label: {
-                        Image(systemName: "magnifyingglass")
+                
+                // 🔹 右下・左下にフローティングボタン配置
+                VStack {
+                    Spacer()
+                    HStack {
+                        // 左下：アルバム切り替えボタン
+                        Button(action: { showAlbum = true }) {
+                            Image(systemName: "photo.on.rectangle")
+                                .font(.system(size: 28))
+                                .foregroundColor(.white)
+                                .padding()
+                                .background(Color.blue)
+                                .clipShape(Circle())
+                                .shadow(radius: 5)
+                        }
+                        Spacer()
+                        // 右下：検索ボタン
+                        Button(action: { showSearch = true }) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 28))
+                                .foregroundColor(.white)
+                                .padding()
+                                .background(Color.green)
+                                .clipShape(Circle())
+                                .shadow(radius: 5)
+                        }
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 30)
                 }
             }
+            .navigationTitle("写真")
             .sheet(isPresented: $showPicker) {
                 PhotoPicker { images, assets in
                     for (i, image) in images.enumerated() {
@@ -116,10 +140,12 @@ struct ContentView: View {
             .fullScreenCover(isPresented: $showSearch) {
                 SearchView(controller: controller, isPresented: $showSearch)
             }
+            .fullScreenCover(isPresented: $showAlbum) {
+                AlbumView(controller: controller, isPresented: $showAlbum) // ← 仮のアルバム画面
+            }
         }
     }
 }
-
 // MARK: - FRCラッパークラス
 /*class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDelegate {
     @Published var photos: [Photo] = []

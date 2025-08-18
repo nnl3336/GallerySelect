@@ -13,17 +13,16 @@ struct SearchView: View {
     
     @State private var keyword = ""
     @State private var showLikedOnly = false
+    @FocusState private var isTextFieldFocused: Bool   // ← フォーカス管理
     
     var body: some View {
         ZStack {
-            // 背景の薄黒
             Color.black.opacity(0.5)
                 .ignoresSafeArea()
                 .onTapGesture {
                     isPresented = false
                 }
             
-            // メインの検索パネル
             VStack(spacing: 20) {
                 HStack {
                     Text("検索")
@@ -42,6 +41,7 @@ struct SearchView: View {
                     .autocapitalization(.none)
                     .disableAutocorrection(true)
                     .submitLabel(.search)
+                    .focused($isTextFieldFocused) // ← フォーカス状態に紐付け
                     .onSubmit {
                         applyFilter()
                     }
@@ -66,10 +66,16 @@ struct SearchView: View {
                 Spacer()
             }
             .padding()
-            .frame(height: 300) // ← ここで高さを小さく調整
+            .frame(height: 300)
             .background(Color(UIColor.systemBackground))
             .cornerRadius(16)
             .padding(.horizontal, 20)
+            .onAppear {
+                // 表示されたら自動でフォーカス
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    isTextFieldFocused = true
+                }
+            }
         }
         .animation(.easeInOut, value: isPresented)
     }

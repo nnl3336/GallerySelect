@@ -209,6 +209,10 @@ struct MainView: View {
         GridItem(.flexible()),
         GridItem(.flexible())
     ]
+    
+    @State private var selectedPhotos = Set<Int>()
+    @State private var showFolderAlert = false
+    @State private var newFolderName = ""
 
     var body: some View {
         NavigationView {
@@ -220,31 +224,34 @@ struct MainView: View {
                             ForEach(controller.photos.indices, id: \.self) { index in
                                 if let imageData = controller.photos[index].imageData,
                                    let uiImage = UIImage(data: imageData) {
-                                    Image(uiImage: uiImage)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(height: 100)
-                                        .clipped()
-                                        .cornerRadius(8)
-                                        .id(index)
-                                        .onTapGesture {
-                                            selectedIndex = index
-                                        }
-                                        .contextMenu {
-                                            Button {
-                                                controller.saveImageToCameraRoll(uiImage)
-                                            } label: {
-                                                Label("保存", systemImage: "square.and.arrow.down")
+                                    ZStack(alignment: .topTrailing) {
+                                        Image(uiImage: uiImage)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(height: 100)
+                                            .clipped()
+                                            .cornerRadius(8)
+                                            .id(index)
+                                            .onTapGesture {
+                                                if selectedPhotos.contains(index) {
+                                                    selectedPhotos.remove(index)
+                                                } else {
+                                                    selectedPhotos.insert(index)
+                                                }
                                             }
-                                            Button(role: .destructive) {
-                                                controller.deletePhoto(at: index)
-                                            } label: {
-                                                Label("削除", systemImage: "trash")
-                                            }
+                                            .overlay(
+                                                selectedPhotos.contains(index) ?
+                                                Color.blue.opacity(0.3).cornerRadius(8) : nil
+                                            )
+                                        
+                                        if selectedPhotos.contains(index) {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundColor(.white)
+                                                .padding(5)
                                         }
+                                    }
                                 }
-                            }
-                        }
+                            }                        }
                         .padding()
                     }
                 }
@@ -261,6 +268,7 @@ struct MainView: View {
 
                 // フローティングボタン群
                 VStack {
+                    
                     Spacer()
                     HStack {
                         // 左下：アルバム

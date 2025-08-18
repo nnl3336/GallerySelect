@@ -200,95 +200,54 @@ extension ContentView {
 struct MainView: View {
     @ObservedObject var controller: PhotoController
     @State private var selectedIndex: Int? = nil
+    @State private var selectedPhotos = Set<Int>()
     @State private var showPicker = false
     @State private var showSearch = false
-    @State private var showAlbum = false
-
-    let columns = [
-        GridItem(.flexible()),
-        GridItem(.flexible()),
-        GridItem(.flexible())
-    ]
-    
-    @State private var selectedPhotos = Set<Int>()
-    @State private var showFolderAlert = false
-    @State private var newFolderName = ""
-
     @State private var showFolderSheet = false
+
+    let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
 
     var body: some View {
         NavigationView {
             ZStack {
                 // 背景グリッド
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVGrid(columns: columns, spacing: 10) {
-                            ForEach(controller.photos.indices, id: \.self) { index in
-                                if let imageData = controller.photos[index].imageData,
-                                   let uiImage = UIImage(data: imageData) {
-                                    ZStack(alignment: .topTrailing) {
-                                        Image(uiImage: uiImage)
-                                            .resizable()
-                                            .scaledToFill()
-                                            .frame(height: 100)
-                                            .clipped()
-                                            .cornerRadius(8)
-                                            .id(index)
-                                            .onTapGesture {
-                                                if !selectedPhotos.isEmpty {
-                                                    // 選択モード → 選択/解除
-                                                    if selectedPhotos.contains(index) {
-                                                        selectedPhotos.remove(index)
-                                                    } else {
-                                                        selectedPhotos.insert(index)
-                                                    }
-                                                } else {
-                                                    // 通常モード → スライダー表示
-                                                    selectedIndex = index
-                                                }
-                                            }
-                                            .overlay(
-                                                selectedPhotos.contains(index) ?
-                                                Color.blue.opacity(0.3).cornerRadius(8) : nil
-                                            )
-                                            // ここで contextMenu を追加
-                                            .contextMenu {
-                                                Button(action: {
-                                                    if selectedPhotos.contains(index) {
-                                                        selectedPhotos.remove(index)
-                                                    } else {
-                                                        selectedPhotos.insert(index)
-                                                    }
-                                                }) {
-                                                    Text(selectedPhotos.contains(index) ? "選択解除" : "選択")
-                                                    Image(systemName: selectedPhotos.contains(index) ? "circle" : "checkmark.circle")
-                                                }
-                                                
-                                                Button {
-                                                    controller.saveImageToCameraRoll(uiImage)
-                                                } label: {
-                                                    Label("保存", systemImage: "square.and.arrow.down")
-                                                }
-                                                
-                                                Button(action: {
-                                                    controller.deletePhoto(at: index)
-                                                }) {
-                                                    Text("削除")
-                                                    Image(systemName: "trash")
-                                                }
-                                            }
-
-                                        if selectedPhotos.contains(index) {
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .foregroundColor(.white)
-                                                .padding(5)
-                                        }
+                ScrollView {
+                    LazyVGrid(columns: columns, spacing: 10) {
+                        ForEach(controller.photos.indices, id: \.self) { index in
+                            PhotoGridCell(
+                                photo: controller.photos[index],
+                                isSelected: selectedPhotos.contains(index)
+                            )
+                            .onTapGesture {
+                                if !selectedPhotos.isEmpty {
+                                    // 選択モード
+                                    if selectedPhotos.contains(index) {
+                                        selectedPhotos.remove(index)
+                                    } else {
+                                        selectedPhotos.insert(index)
                                     }
+                                } else {
+                                    // 通常モード
+                                    selectedIndex = index
+                                }
+                            }
+                            .contextMenu {
+                                PhotoContextMenu(
+                                    photo: controller.photos[index],
+                                    isSelected: selectedPhotos.contains(index)
+                                ) { toggle in
+                                    if toggle {
+                                        selectedPhotos.insert(index)
+                                    } else {
+                                        selectedPhotos.remove(index)
+                                    }
+                                } deleteAction: {
+                                    controller.deletePhoto(at: index)
                                 }
                             }
                         }
-                        .padding()
                     }
+                    .padding()
                 }
 
                 // フルスクリーンスライダー
@@ -301,74 +260,14 @@ struct MainView: View {
                     .zIndex(1)
                 }
 
-                // フローティングボタン群
-                VStack {
-                    
-
-                    
-                    Spacer()
-                    
-                    HStack {
-                        
-                        // 左下：アルバム
-                        NavigationLink(destination: AlbumView(controller: controller)) {
-                            Image(systemName: "photo.on.rectangle")
-                                .font(.title)
-                                .padding()
-                                .background(Color.blue.opacity(0.8))
-                                .foregroundColor(.white)
-                                .clipShape(Circle())
-                                .shadow(radius: 4)
-                        }
-                        .padding(.leading, 20)
-
-                        // フォルダ作成ボタン
-                        Button {
-                            if !selectedPhotos.isEmpty {
-                                showFolderSheet = true   // シートを表示
-                            }
-                        } label: {
-                            Image(systemName: "folder.badge.plus")
-                                .font(.title)
-                                .padding()
-                                .background(Color.purple.opacity(0.8))
-                                .foregroundColor(.white)
-                                .clipShape(Circle())
-                                .shadow(radius: 4)
-                        }
-                        
-                        Spacer()
-
-                        // 右下：検索
-                        Button {
-                            showSearch = true
-                        } label: {
-                            Image(systemName: "magnifyingglass")
-                                .font(.title)
-                                .padding()
-                                .background(Color.green.opacity(0.8))
-                                .foregroundColor(.white)
-                                .clipShape(Circle())
-                                .shadow(radius: 4)
-                        }
-                        .padding(.trailing, 20)
-
-                        // 右下：写真追加
-                        Button {
-                            showPicker = true
-                        } label: {
-                            Image(systemName: "plus")
-                                .font(.title)
-                                .padding()
-                                .background(Color.orange.opacity(0.8))
-                                .foregroundColor(.white)
-                                .clipShape(Circle())
-                                .shadow(radius: 4)
-                        }
-                        .padding(.trailing, 20)
-                    }
-                    .padding(.bottom, 30)
-                }
+                // フローティングボタン
+                FloatingButtonPanel(
+                    selectedPhotos: $selectedPhotos,
+                    showPicker: $showPicker,
+                    showSearch: $showSearch,
+                    showFolderSheet: $showFolderSheet,
+                    controller: controller
+                )
             }
             .navigationTitle("写真")
             .sheet(isPresented: $showPicker) {
@@ -380,24 +279,109 @@ struct MainView: View {
                 }
             }
             .sheet(isPresented: $showFolderSheet) {
-                FolderSheetView(
-                    isPresented: $showFolderSheet,
-                    selectedPhotos: $selectedPhotos
-                ) { selectedPhotos, name in
-                    // CoreData に保存する処理
-                    //print("作成: \(name), 写真: \(selectedPhotos)")
+                FolderSheetView(isPresented: $showFolderSheet, selectedPhotos: $selectedPhotos) { selectedPhotos, name in
+                    // CoreData に保存
                 }
             }
-
             .fullScreenCover(isPresented: $showSearch) {
                 SearchView(controller: controller, isPresented: $showSearch)
-            }
-            .fullScreenCover(isPresented: $showAlbum) {
-                AlbumView(controller: controller) // ← 仮のアルバム画面
             }
         }
     }
 }
+
+struct PhotoGridCell: View {
+    var photo: Photo
+    var isSelected: Bool
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            if let data = photo.imageData, let uiImage = UIImage(data: data) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(height: 100)
+                    .clipped()
+                    .cornerRadius(8)
+                    .overlay(
+                        isSelected ? Color.blue.opacity(0.3).cornerRadius(8) : nil
+                    )
+            }
+            if isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.white)
+                    .padding(5)
+            }
+        }
+    }
+}
+
+struct PhotoContextMenu: View {
+    var photo: Photo
+    var isSelected: Bool
+    var toggleSelection: (Bool) -> Void
+    var deleteAction: () -> Void
+
+    var body: some View {
+        VStack {
+            Button(action: { toggleSelection(!isSelected) }) {
+                Label(isSelected ? "選択解除" : "選択", systemImage: isSelected ? "circle" : "checkmark.circle")
+            }
+            Button { UIImageWriteToSavedPhotosAlbum(UIImage(data: photo.imageData ?? Data())!, nil, nil, nil) } label: {
+                Label("保存", systemImage: "square.and.arrow.down")
+            }
+            Button(action: deleteAction) {
+                Label("削除", systemImage: "trash")
+            }
+        }
+    }
+}
+
+struct FloatingButtonPanel: View {
+    @Binding var selectedPhotos: Set<Int>
+    @Binding var showPicker: Bool
+    @Binding var showSearch: Bool
+    @Binding var showFolderSheet: Bool
+    var controller: PhotoController
+
+    var body: some View {
+        VStack { Spacer()
+            HStack {
+                NavigationLink(destination: AlbumView(controller: controller)) {
+                    Image(systemName: "photo.on.rectangle")
+                        .floatingStyle(color: .blue)
+                }
+                Button { if !selectedPhotos.isEmpty { showFolderSheet = true } } label: {
+                    Image(systemName: "folder.badge.plus")
+                        .floatingStyle(color: .purple)
+                }
+                Spacer()
+                Button { showSearch = true } label: {
+                    Image(systemName: "magnifyingglass")
+                        .floatingStyle(color: .green)
+                }
+                Button { showPicker = true } label: {
+                    Image(systemName: "plus")
+                        .floatingStyle(color: .orange)
+                }
+            }
+            .padding(.bottom, 30)
+        }
+    }
+}
+
+extension View {
+    func floatingStyle(color: Color) -> some View {
+        self.font(.title)
+            .padding()
+            .background(color.opacity(0.8))
+            .foregroundColor(.white)
+            .clipShape(Circle())
+            .shadow(radius: 4)
+            .padding(.horizontal, 20)
+    }
+}
+
 
 //
 

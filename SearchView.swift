@@ -20,7 +20,6 @@ struct SearchView: View {
             Color.black.opacity(0.5)
                 .ignoresSafeArea()
                 .onTapGesture {
-                    // 背景タップで閉じる
                     isPresented = false
                 }
             
@@ -67,6 +66,7 @@ struct SearchView: View {
                 Spacer()
             }
             .padding()
+            .frame(height: 300) // ← ここで高さを小さく調整
             .background(Color(UIColor.systemBackground))
             .cornerRadius(16)
             .padding(.horizontal, 20)

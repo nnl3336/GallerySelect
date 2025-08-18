@@ -18,47 +18,64 @@ struct PhotoSliderView: View {
     @State private var saveWorkItem: DispatchWorkItem?
 
     var body: some View {
-        let photo = fetchController.photos[selectedIndex]
-
         ZStack(alignment: .topTrailing) {
             Color.black.opacity(0.8).ignoresSafeArea()
 
-            VStack {
-                Image(uiImage: UIImage(data: photo.imageData!)!)
-                    .resizable()
-                    .scaledToFit()
-                    .offset(y: offset.height)
-                    .scaleEffect(1 - min(offset.height / 1000, 0.5))
-                    .animation(.interactiveSpring(), value: offset)
-                    .gesture(
-                        DragGesture()
-                            .onChanged { gesture in
-                                if abs(gesture.translation.width) < abs(gesture.translation.height) {
-                                    offset = gesture.translation
-                                }
-                            }
-                            .onEnded { _ in
-                                if offset.height > 150 { saveAndClose() }
-                                else { withAnimation(.spring()) { offset = .zero } }
-                            }
-                    )
+            TabView(selection: $selectedIndex) {
+                ForEach(fetchController.photos.indices, id: \.self) { index in
+                    let photo = fetchController.photos[index]
+                    VStack {
+                        Image(uiImage: UIImage(data: photo.imageData!)!)
+                            .resizable()
+                            .scaledToFit()
+                            .offset(y: offset.height)
+                            .scaleEffect(1 - min(offset.height / 1000, 0.5))
+                            .animation(.interactiveSpring(), value: offset)
+                            .gesture(
+                                DragGesture()
+                                    .onChanged { gesture in
+                                        if abs(gesture.translation.width) < abs(gesture.translation.height) {
+                                            offset = gesture.translation
+                                        }
+                                    }
+                                    .onEnded { _ in
+                                        if offset.height > 150 { saveAndClose() }
+                                        else { withAnimation(.spring()) { offset = .zero } }
+                                    }
+                            )
 
-                TextField("キャプションを入力", text: $currentNote)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .padding(.horizontal)
-                    .onChange(of: currentNote) { _ in
-                        scheduleSave()
+                        TextField("キャプションを入力", text: Binding(
+                            get: { index == selectedIndex ? currentNote : photo.note ?? "" },
+                            set: { newValue in
+                                if index == selectedIndex { currentNote = newValue }
+                                scheduleSave()
+                            }
+                        ))
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .padding(.horizontal)
+
+                        Button(action: {
+                            if index == selectedIndex { currentLiked.toggle() }
+                            scheduleSave()
+                        }) {
+                            Image(systemName: (index == selectedIndex ? currentLiked : photo.isLiked) ? "heart.fill" : "heart")
+                                .foregroundColor(.red)
+                                .font(.title)
+                        }
+                        .padding(.bottom)
                     }
-
-                Button(action: {
-                    currentLiked.toggle()
-                    scheduleSave()
-                }) {
-                    Image(systemName: currentLiked ? "heart.fill" : "heart")
-                        .foregroundColor(.red)
-                        .font(.title)
+                    .tag(index)
+                    .onAppear {
+                        if index == selectedIndex {
+                            currentNote = photo.note ?? ""
+                            currentLiked = photo.isLiked
+                        }
+                    }
                 }
-                .padding(.bottom)
+            }
+            .tabViewStyle(PageTabViewStyle(indexDisplayMode: .always))
+            .onChange(of: selectedIndex) { _ in
+                savePhoto()
             }
 
             Button(action: saveAndClose) {
@@ -68,13 +85,10 @@ struct PhotoSliderView: View {
                     .padding()
             }
         }
-        .onAppear {
-            currentNote = photo.note ?? ""
-            currentLiked = photo.isLiked
-        }
     }
 
     private func savePhoto() {
+        guard fetchController.photos.indices.contains(selectedIndex) else { return }
         let photo = fetchController.photos[selectedIndex]
         photo.note = currentNote
         photo.isLiked = currentLiked
@@ -98,6 +112,6 @@ struct PhotoSliderView: View {
         saveWorkItem?.cancel()
         let workItem = DispatchWorkItem { savePhoto() }
         saveWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: workItem) // 1秒遅延で軽量化
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: workItem)
     }
 }

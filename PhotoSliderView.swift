@@ -40,24 +40,29 @@ struct PhotoSliderView: View {
             TabView(selection: $selectedIndex) {
                 ForEach(fetchController.photos.indices, id: \.self) { index in
                     VStack {
-                        Image(uiImage: vm.cachedImage(for: index, photos: fetchController.photos))
-                            .resizable()
-                            .scaledToFit()
-                            .offset(y: offset.height)
-                            .scaleEffect(1 - min(offset.height / 1000, 0.5))
-                            .animation(.interactiveSpring(), value: offset)
-                            .gesture(
-                                DragGesture()
-                                    .onChanged { gesture in
-                                        if abs(gesture.translation.width) < abs(gesture.translation.height) {
-                                            offset = gesture.translation
+                        GeometryReader { geo in
+                            Image(uiImage: vm.cachedImage(for: index, photos: fetchController.photos))
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: geo.size.width, height: geo.size.height)
+                                .clipped()
+                                .ignoresSafeArea(.all) // セーフエリアも含めて画面いっぱい
+                                .offset(y: offset.height)
+                                .scaleEffect(1 - min(offset.height / 1000, 0.5))
+                                .animation(.interactiveSpring(), value: offset)
+                                .gesture(
+                                    DragGesture()
+                                        .onChanged { gesture in
+                                            if abs(gesture.translation.width) < abs(gesture.translation.height) {
+                                                offset = gesture.translation
+                                            }
                                         }
-                                    }
-                                    .onEnded { _ in
-                                        if offset.height > 150 { saveAndClose() }
-                                        else { withAnimation(.spring()) { offset = .zero } }
-                                    }
-                            )
+                                        .onEnded { _ in
+                                            if offset.height > 150 { saveAndClose() }
+                                            else { withAnimation(.spring()) { offset = .zero } }
+                                        }
+                                )
+                        }
                         
                         TextField(
                             "キャプションを入力",

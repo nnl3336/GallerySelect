@@ -8,68 +8,57 @@
 import SwiftUI
 
 struct PhotoSliderView: View {
-    @ObservedObject var fetchController: PhotoController // ←追加
+    @ObservedObject var fetchController: PhotoController
     @State var selectedIndex: Int
     var onClose: () -> Void
 
     @State private var offset = CGSize.zero
+    @State private var currentNote: String = ""
+    @State private var currentLiked: Bool = false
     @State private var saveWorkItem: DispatchWorkItem?
-    
-    @State private var localNotes: [Int: String] = [:]
-    @State private var localLikes: [Int: Bool] = [:]
 
     var body: some View {
+        let photo = fetchController.photos[selectedIndex]
+
         ZStack(alignment: .topTrailing) {
             Color.black.opacity(0.8).ignoresSafeArea()
 
-            TabView(selection: $selectedIndex) {
-                ForEach(fetchController.photos.indices, id: \.self) { index in
-                    VStack {
-                        Image(uiImage: UIImage(data: fetchController.photos[index].imageData!)!)
-                            .resizable()
-                            .scaledToFit()
-                            .offset(y: offset.height)
-                            .scaleEffect(1 - min(offset.height / 1000, 0.5))
-                            .animation(.interactiveSpring(), value: offset)
-                            .gesture(
-                                DragGesture()
-                                    .onChanged { gesture in
-                                        if abs(gesture.translation.width) < abs(gesture.translation.height) {
-                                            offset = gesture.translation
-                                        }
-                                    }
-                                    .onEnded { _ in
-                                        if offset.height > 150 { saveAndClose() }
-                                        else { withAnimation(.spring()) { offset = .zero } }
-                                    }
-                            )
-                        
-                        TextField("キャプションを入力", text: Binding(
-                            get: { localNotes[index] ?? fetchController.photos[index].note ?? "" },
-                            set: { newValue in
-                                localNotes[index] = newValue
-                                scheduleSave(index: index) // 入力中は非同期で遅延保存
+            VStack {
+                Image(uiImage: UIImage(data: photo.imageData!)!)
+                    .resizable()
+                    .scaledToFit()
+                    .offset(y: offset.height)
+                    .scaleEffect(1 - min(offset.height / 1000, 0.5))
+                    .animation(.interactiveSpring(), value: offset)
+                    .gesture(
+                        DragGesture()
+                            .onChanged { gesture in
+                                if abs(gesture.translation.width) < abs(gesture.translation.height) {
+                                    offset = gesture.translation
+                                }
                             }
-                        ))
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .padding(.horizontal)
+                            .onEnded { _ in
+                                if offset.height > 150 { saveAndClose() }
+                                else { withAnimation(.spring()) { offset = .zero } }
+                            }
+                    )
 
-                        Button(action: {
-                            fetchController.photos[index].isLiked.toggle()
-                            scheduleSave(index: index)
-                        }) {
-                            Image(systemName: fetchController.photos[index].isLiked ? "heart.fill" : "heart")
-                                .foregroundColor(.red)
-                                .font(.title)
-                        }
-                        .padding(.bottom)
+                TextField("キャプションを入力", text: $currentNote)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .padding(.horizontal)
+                    .onChange(of: currentNote) { _ in
+                        scheduleSave()
                     }
-                    .tag(index)
+
+                Button(action: {
+                    currentLiked.toggle()
+                    scheduleSave()
+                }) {
+                    Image(systemName: currentLiked ? "heart.fill" : "heart")
+                        .foregroundColor(.red)
+                        .font(.title)
                 }
-            }
-            .tabViewStyle(PageTabViewStyle(indexDisplayMode: .always))
-            .onChange(of: selectedIndex) { oldIndex in
-                saveCaptionAndLike(at: oldIndex)
+                .padding(.bottom)
             }
 
             Button(action: saveAndClose) {
@@ -79,29 +68,36 @@ struct PhotoSliderView: View {
                     .padding()
             }
         }
+        .onAppear {
+            currentNote = photo.note ?? ""
+            currentLiked = photo.isLiked
+        }
     }
 
-    private func saveCaptionAndLike(at index: Int) {
-        guard index < fetchController.photos.count else { return }
-        let photo = fetchController.photos[index]
+    private func savePhoto() {
+        let photo = fetchController.photos[selectedIndex]
+        photo.note = currentNote
+        photo.isLiked = currentLiked
 
-        do {
-            try fetchController.context.save()
-            print("保存しました: \(photo.note ?? ""), いいね: \(photo.isLiked) （インデックス \(index)）")
-        } catch {
-            print("保存エラー: \(error)")
+        DispatchQueue.global(qos: .background).async {
+            do {
+                try fetchController.context.save()
+                print("保存しました: \(photo.note ?? ""), いいね: \(photo.isLiked)")
+            } catch {
+                print("保存エラー: \(error)")
+            }
         }
     }
 
     private func saveAndClose() {
-        saveCaptionAndLike(at: selectedIndex)
+        savePhoto()
         onClose()
     }
 
-    private func scheduleSave(index: Int) {
+    private func scheduleSave() {
         saveWorkItem?.cancel()
-        let workItem = DispatchWorkItem { saveCaptionAndLike(at: index) }
+        let workItem = DispatchWorkItem { savePhoto() }
         saveWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 10, execute: workItem)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: workItem) // 1秒遅延で軽量化
     }
 }

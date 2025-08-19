@@ -206,7 +206,7 @@ struct MainView: View {
     @State private var showFolderSheet = false
     @State private var showAlbum = false
     // セグメント
-    @State private var segmentSelection = 0
+    @State private var segmentSelection = 2
     // 以前
     //let segments = ["すべての写真", "前の月", "後ろの月"]
 
@@ -214,7 +214,7 @@ struct MainView: View {
     let segments = ["後ろの月", "前の月", "すべての写真"]
     // 右端スクロールバー
     @State private var showFastScroll = false
-    @State private var dragPosition: CGFloat = 2
+    @State private var dragPosition: CGFloat = 0
 
     let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
 
@@ -373,6 +373,18 @@ struct MainView: View {
                         .pickerStyle(.segmented)
                         .padding()
                     }
+                
+                // 選択中ならCancelボタンを表示
+                        if !selectedPhotos.isEmpty {
+                            HStack {
+                                Spacer()
+                                Button("cancel") {
+                                    selectedPhotos.removeAll()
+                                }
+                                .padding(.leading)
+                                Spacer()
+                            }
+                        }
             }
             .navigationTitle("写真")
         }

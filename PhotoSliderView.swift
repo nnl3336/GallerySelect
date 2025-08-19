@@ -8,22 +8,6 @@
 import SwiftUI
 import Combine
 
-class PhotoSliderViewModel: ObservableObject {
-    @Published var localNotes: [Int: String] = [:]
-    @Published var localLikes: [Int: Bool] = [:]
-    
-    private(set) var imageCache: [Int: UIImage] = [:]
-    
-    func cachedImage(for index: Int, photos: [Photo]) -> UIImage {
-        if let img = imageCache[index] { return img }
-        if let data = photos[index].imageData, let img = UIImage(data: data) {
-            imageCache[index] = img
-            return img
-        }
-        return UIImage()
-    }
-}
-
 struct PhotoSliderView: View {
     @Binding var selectedIndex: Int?
     @Binding var photos: [Photo]
@@ -54,6 +38,8 @@ struct PhotoDetailView: View {
     @Binding var photo: Photo
     var namespace: Namespace.ID
 
+    @State private var offsetY: CGFloat = 0
+
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Color.black.opacity(0.9).ignoresSafeArea()
@@ -61,20 +47,32 @@ struct PhotoDetailView: View {
             VStack {
                 Spacer()
 
-                // 画像
                 if let data = photo.imageData, let uiImage = UIImage(data: data) {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFit()
                         .matchedGeometryEffect(id: photo.id, in: namespace)
-                        .onTapGesture {
-                            withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.7, blendDuration: 0.7)) {
-                                selectedIndex = nil
-                            }
-                        }
+                        .offset(y: offsetY)
+                        .gesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    offsetY = value.translation.height
+                                }
+                                .onEnded { value in
+                                    if value.translation.height > 150 {
+                                        withAnimation(.spring()) {
+                                            selectedIndex = nil
+                                            offsetY = 0
+                                        }
+                                    } else {
+                                        withAnimation(.spring()) {
+                                            offsetY = 0
+                                        }
+                                    }
+                                }
+                        )
                 }
-
-                // キャプション入力
+                // キャプション
                 TextField("キャプションを入力", text: Binding(
                     get: { photo.note ?? "" },
                     set: { photo.note = $0 }
@@ -88,7 +86,7 @@ struct PhotoDetailView: View {
 
             // 閉じるボタン
             Button(action: {
-                withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.7, blendDuration: 0.7)) {
+                withAnimation(.spring()) {
                     selectedIndex = nil
                 }
             }) {
@@ -100,5 +98,23 @@ struct PhotoDetailView: View {
         }
         .transition(.opacity)
         .zIndex(1)
+    }
+}
+
+//
+
+class PhotoSliderViewModel: ObservableObject {
+    @Published var localNotes: [Int: String] = [:]
+    @Published var localLikes: [Int: Bool] = [:]
+    
+    private(set) var imageCache: [Int: UIImage] = [:]
+    
+    func cachedImage(for index: Int, photos: [Photo]) -> UIImage {
+        if let img = imageCache[index] { return img }
+        if let data = photos[index].imageData, let img = UIImage(data: data) {
+            imageCache[index] = img
+            return img
+        }
+        return UIImage()
     }
 }

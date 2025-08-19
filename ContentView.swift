@@ -34,9 +34,11 @@ struct ContentView: View {
                 }
             }
             .transition(.opacity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)  // ここが重要
 
             // 画面下の切り替えボタン
-            /*HStack {
+            /*
+            HStack {
                 Button {
                     withAnimation { currentScreen = .photos }
                 } label: {
@@ -56,6 +58,7 @@ struct ContentView: View {
             .padding()
             .background(.ultraThinMaterial)*/
         }
+        .ignoresSafeArea() // これを追加するとステータスバーなども含めて全画面になります
     }
 }
 
@@ -240,14 +243,16 @@ struct MainView: View {
     var body: some View {
         NavigationView {
             VStack {
-                // セグメント
-                Picker("", selection: $segmentSelection) {
-                    ForEach(0..<segments.count, id: \.self) { i in
-                        Text(segments[i])
+                // セグメントは拡大表示中は非表示
+                    if selectedIndex == nil {
+                        Picker("", selection: $segmentSelection) {
+                            ForEach(0..<segments.count, id: \.self) { i in
+                                Text(segments[i])
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal)
                     }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
 
                 // 写真グリッド + 右端スクロール
                 ScrollViewReader { proxy in
@@ -326,17 +331,17 @@ struct MainView: View {
                                 ForEach(controller.photos.indices, id: \.self) { index in
                                     PhotoDetailView(
                                         selectedIndex: $selectedIndex,
-                                        photo: $controller.photos[index], // Binding<Photo> にできる
+                                        photo: $controller.photos[index],
                                         namespace: namespace
                                     )
                                     .tag(index)
+                                    .background(Color.black.edgesIgnoringSafeArea(.all)) // ナビバーも隠す
                                 }
                             }
                             .tabViewStyle(.page(indexDisplayMode: .never))
-                            .background(Color.black.opacity(0.9))
-                            .ignoresSafeArea()
                             .zIndex(1)
                         }
+
 
                         // フローティングボタン
                         FloatingButtonPanel(
@@ -350,6 +355,7 @@ struct MainView: View {
                 }
             }
             .navigationTitle("写真")
+            .navigationBarHidden(selectedIndex != nil) // 拡大表示中は非表示
         }
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -453,9 +459,6 @@ extension View {
 
 
 //
-
-
-
 
 
 // MARK: - PhotoPicker

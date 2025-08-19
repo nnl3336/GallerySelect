@@ -231,6 +231,9 @@ struct MainView: View {
             return controller.photos
         }
     }
+    
+    @State private var enlargedIndex: Int? = nil
+
 
     var body: some View {
         NavigationView {
@@ -254,16 +257,13 @@ struct MainView: View {
                                         photo: filteredPhotos[index],
                                         isSelected: selectedPhotos.contains(index)
                                     )
-                                    .id(index)
+                                    .frame(height: enlargedIndex == index ? 300 : 100) // 高さ変更
+                                    .animation(.spring(), value: enlargedIndex)
                                     .onTapGesture {
-                                        if !selectedPhotos.isEmpty {
-                                            if selectedPhotos.contains(index) {
-                                                selectedPhotos.remove(index)
-                                            } else {
-                                                selectedPhotos.insert(index)
-                                            }
+                                        if enlargedIndex == index {
+                                            enlargedIndex = nil // 元に戻す
                                         } else {
-                                            selectedIndex = index
+                                            enlargedIndex = index // 拡大
                                         }
                                     }
                                 }

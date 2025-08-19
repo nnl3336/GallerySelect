@@ -308,26 +308,32 @@ struct PhotoGridCell: View {
     var isSelected: Bool
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            if let data = photo.imageData, let uiImage = UIImage(data: data) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(height: 100)
-                    .clipped()
-                    .cornerRadius(8)
-                    .overlay(
-                        isSelected ? Color.blue.opacity(0.3).cornerRadius(8) : nil
-                    )
-            }
-            if isSelected {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.white)
-                    .padding(5)
+        GeometryReader { geo in
+            ZStack(alignment: .topTrailing) {
+                if let data = photo.imageData,
+                   let uiImage = UIImage(data: data) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: geo.size.width, height: geo.size.width) // 正方形
+                        .clipped()
+                        .cornerRadius(8)
+                        .overlay(
+                            isSelected ? Color.blue.opacity(0.3).cornerRadius(8) : nil
+                        )
+                        //.contentShape(Rectangle())   // ← これが重要！
+                }
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.white)
+                        .padding(5)
+                }
             }
         }
+        //.frame(height: 100) // Grid 用に高さを指定
     }
 }
+
 
 struct PhotoContextMenu: View {
     var photo: Photo

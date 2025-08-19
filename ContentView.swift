@@ -200,7 +200,7 @@ extension ContentView {
 struct MainView: View {
     @ObservedObject var controller: PhotoController
     @State private var selectedIndex: Int? = nil
-    @State private var selectedPhotos = Set<Int>()
+    /*@State private var selectedPhotos = Set<Int>()*/ @State private var selectedPhotos = Set<Int>()
     @State private var showPicker = false
     @State private var showSearch = false
     @State private var showFolderSheet = false
@@ -236,6 +236,9 @@ struct MainView: View {
             return controller.photos
         }
     }
+    
+    @State private var visiblePhotoIndex: Int = 0
+
 
     var body: some View {
         NavigationView {
@@ -296,6 +299,17 @@ struct MainView: View {
                                             }
                                         }
                             )
+                            
+                            // 左上に日付表示
+                                if visiblePhotoIndex < filteredPhotos.count {
+                                    Text(DateUtils.photoLabelFormatter.string(from: filteredPhotos[visiblePhotoIndex].creationDate ?? Date()))
+                                        .font(.headline)
+                                        .padding(8)
+                                        .background(.thinMaterial)
+                                        .cornerRadius(8)
+                                        .padding(.top, 8)
+                                        .padding(.leading, 8)
+                                }
                         }
 
                         // 右端スクロールハンドル
@@ -391,11 +405,11 @@ struct MainView: View {
         .sheet(isPresented: $showFolderSheet) {
             FolderSheetView(
                 isPresented: $showFolderSheet,
-                selectedPhotos: $selectedPhotos,
-                photos: controller.photos   // ← ここで配列を渡す
+                selectedPhotos: .constant([]),  // ← 空集合
+                photos: controller.photos
             )
         }
-        
+
         
         .fullScreenCover(isPresented: $showSearch) {
             SearchView(controller: controller, isPresented: $showSearch)
@@ -503,10 +517,13 @@ struct FloatingButtonPanel: View {
                     Image(systemName: "photo.on.rectangle")
                         .floatingStyle(color: .blue)
                 }
-                Button { if !selectedPhotos.isEmpty { showFolderSheet = true } } label: {
+                Button {
+                    showFolderSheet = true   // 選択が空でもシート表示
+                } label: {
                     Image(systemName: "folder.badge.plus")
                         .floatingStyle(color: .purple)
                 }
+
                 Spacer()
                 Button { showSearch = true } label: {
                     Image(systemName: "magnifyingglass")

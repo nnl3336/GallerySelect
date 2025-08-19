@@ -388,7 +388,15 @@ struct MainView: View {
                 }
             }
         }
-
+        .sheet(isPresented: $showFolderSheet) {
+            FolderSheetView(
+                isPresented: $showFolderSheet,
+                selectedPhotos: $selectedPhotos,
+                photos: controller.photos   // ← ここで配列を渡す
+            )
+        }
+        
+        
         .fullScreenCover(isPresented: $showSearch) {
             SearchView(controller: controller, isPresented: $showSearch)
         }
@@ -440,7 +448,7 @@ struct PhotoGridCell: View {
     }
 }
 
-
+//
 
 
 struct PhotoContextMenu: View {

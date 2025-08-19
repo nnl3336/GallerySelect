@@ -44,35 +44,37 @@ struct PhotoDetailView: View {
         ZStack(alignment: .topTrailing) {
             Color.black.opacity(0.9).ignoresSafeArea()
 
-            VStack {
-                Spacer()
-
-                if let data = photo.imageData, let uiImage = UIImage(data: data) {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFit()
-                        .matchedGeometryEffect(id: photo.id, in: namespace)
-                        .offset(y: offsetY)
-                        .gesture(
-                            DragGesture()
-                                .onChanged { value in
-                                    offsetY = value.translation.height
-                                }
-                                .onEnded { value in
-                                    if value.translation.height > 150 {
-                                        withAnimation(.spring()) {
-                                            selectedIndex = nil
-                                            offsetY = 0
-                                        }
-                                    } else {
-                                        withAnimation(.spring()) {
-                                            offsetY = 0
-                                        }
+            if let data = photo.imageData, let uiImage = UIImage(data: data) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFit()
+                    .matchedGeometryEffect(id: photo.id, in: namespace)
+                    .offset(y: offsetY)
+                    .simultaneousGesture(
+                        DragGesture()
+                            .onChanged { value in
+                                offsetY = value.translation.height
+                            }
+                            .onEnded { value in
+                                if value.translation.height > 150 {
+                                    withAnimation(.spring()) {
+                                        selectedIndex = nil
+                                        offsetY = 0
+                                    }
+                                } else {
+                                    withAnimation(.spring()) {
+                                        offsetY = 0
                                     }
                                 }
-                        )
-                }
-                // キャプション
+                            }
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+            }
+
+            // キャプション
+            VStack {
+                Spacer()
                 TextField("キャプションを入力", text: Binding(
                     get: { photo.note ?? "" },
                     set: { photo.note = $0 }

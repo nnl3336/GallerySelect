@@ -199,6 +199,8 @@ extension ContentView {
     }
 }
 
+//
+
 // MARK: - SwiftUI MainView
 struct MainView: View {
     @ObservedObject var controller: PhotoController
@@ -207,6 +209,7 @@ struct MainView: View {
     @State private var showPicker = false
     @State private var showSearch = false
     @State private var showFolderSheet = false
+    @State private var showAlbum = false
 
     // セグメント
     @State private var segmentSelection = 0
@@ -238,7 +241,7 @@ struct MainView: View {
         }
     }
     
-    
+    //***
 
     var body: some View {
         NavigationView {
@@ -269,9 +272,50 @@ struct MainView: View {
                                             .clipped()
                                             .cornerRadius(8)
                                             .matchedGeometryEffect(id: index, in: namespace)
+                                            .id(index)
                                             .onTapGesture {
-                                                withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.7, blendDuration: 0.7)) {
-                                                    selectedIndex = index
+                                                if !selectedPhotos.isEmpty {
+                                                    // 選択モード → 選択/解除
+                                                    if selectedPhotos.contains(index) {
+                                                        selectedPhotos.remove(index)
+                                                    } else {
+                                                        selectedPhotos.insert(index)
+                                                    }
+                                                } else {
+                                                    // 通常モード → スライダー表示（アニメーション付き）
+                                                    withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.7, blendDuration: 0.7)) {
+                                                        selectedIndex = index
+                                                    }
+                                                }
+                                            }
+                                            .overlay(
+                                                selectedPhotos.contains(index) ?
+                                                Color.blue.opacity(0.3).cornerRadius(8) : nil
+                                            )
+                                        // ここで contextMenu を追加
+                                            .contextMenu {
+                                                Button(action: {
+                                                    if selectedPhotos.contains(index) {
+                                                        selectedPhotos.remove(index)
+                                                    } else {
+                                                        selectedPhotos.insert(index)
+                                                    }
+                                                }) {
+                                                    Text(selectedPhotos.contains(index) ? "選択解除" : "選択")
+                                                    Image(systemName: selectedPhotos.contains(index) ? "circle" : "checkmark.circle")
+                                                }
+                                                
+                                                Button {
+                                                    controller.saveImageToCameraRoll(uiImage)
+                                                } label: {
+                                                    Label("保存", systemImage: "square.and.arrow.down")
+                                                }
+                                                
+                                                Button(action: {
+                                                    controller.deletePhoto(at: index)
+                                                }) {
+                                                    Text("削除")
+                                                    Image(systemName: "trash")
                                                 }
                                             }
                                     }
@@ -288,6 +332,13 @@ struct MainView: View {
                                             }
                                         }
                             )
+                            .onAppear {
+                                if let lastIndex = filteredPhotos.indices.last {
+                                    withAnimation {
+                                        proxy.scrollTo(lastIndex, anchor: .bottom)
+                                    }
+                                }
+                            }
                         }
 
                         // 右端スクロールハンドル
@@ -358,6 +409,22 @@ struct MainView: View {
             .navigationBarHidden(selectedIndex != nil) // 拡大表示中は非表示
         }
         .navigationBarTitleDisplayMode(.inline)
+        
+        .sheet(isPresented: $showPicker) {
+            PhotoPicker { images, assets in
+                for (i, image) in images.enumerated() {
+                    let creationDate = (i < assets.count) ? assets[i].creationDate ?? Date() : Date()
+                    controller.addPhoto(image, creationDate: creationDate)
+                }
+            }
+        }
+
+        .fullScreenCover(isPresented: $showSearch) {
+            SearchView(controller: controller, isPresented: $showSearch)
+        }
+        .fullScreenCover(isPresented: $showAlbum) {
+            FolderListView(controller: controller) // ← 仮のアルバム画面
+        }
     }
 }
 

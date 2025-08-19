@@ -29,8 +29,7 @@ struct PhotoSliderView: View {
     @State var selectedIndex: Int
     var onClose: () -> Void
 
-    @State private var showOverlay = true  // ← オーバーレイ表示/非表示
-    @State private var offset = CGSize.zero
+    @State private var showOverlay = true
     @StateObject private var vm = PhotoSliderViewModel()
 
     var body: some View {
@@ -47,7 +46,7 @@ struct PhotoSliderView: View {
                             .clipped()
                             .onTapGesture {
                                 withAnimation {
-                                    showOverlay.toggle()  // ← タップでトグル
+                                    showOverlay.toggle()
                                 }
                             }
                     }
@@ -57,9 +56,7 @@ struct PhotoSliderView: View {
             .tabViewStyle(PageTabViewStyle(indexDisplayMode: showOverlay ? .always : .never))
             
             if showOverlay {
-                Button(action: {
-                    onClose()
-                }) {
+                Button(action: { onClose() }) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.largeTitle)
                         .foregroundColor(.white)
@@ -67,5 +64,16 @@ struct PhotoSliderView: View {
                 }
             }
         }
+        // ここで ZStack 全体に上下スワイプを検知
+        .gesture(
+            DragGesture()
+                .onEnded { value in
+                    if value.translation.height > 50 { // 下方向にスワイプ
+                        withAnimation {
+                            onClose()
+                        }
+                    }
+                }
+        )
     }
 }

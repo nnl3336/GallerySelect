@@ -204,29 +204,34 @@ struct MainView: View {
     @State private var showPicker = false
     @State private var showSearch = false
     @State private var showFolderSheet = false
-
+    @State private var showAlbum = false
     // セグメント
     @State private var segmentSelection = 0
-    let segments = ["すべての写真", "前の月", "後ろの月"]
+    // 以前
+    //let segments = ["すべての写真", "前の月", "後ろの月"]
 
+    // 逆順に
+    let segments = ["後ろの月", "前の月", "すべての写真"]
     // 右端スクロールバー
     @State private var showFastScroll = false
-    @State private var dragPosition: CGFloat = 0
+    @State private var dragPosition: CGFloat = 2
 
     let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
 
     var filteredPhotos: [Photo] {
         switch segmentSelection {
+        case 0: // 後ろの月
+            return controller.photos.filter { photo in
+                guard let date = photo.creationDate else { return false }
+                return Calendar.current.isDate(date, equalTo: Date().addingTimeInterval(30*24*60*60), toGranularity: .month)
+            }
         case 1: // 前の月
             return controller.photos.filter { photo in
                 guard let date = photo.creationDate else { return false }
                 return Calendar.current.isDate(date, equalTo: Date().addingTimeInterval(-30*24*60*60), toGranularity: .month)
             }
-        case 2: // 後ろの月
-            return controller.photos.filter { photo in
-                guard let date = photo.creationDate else { return false }
-                return Calendar.current.isDate(date, equalTo: Date().addingTimeInterval(30*24*60*60), toGranularity: .month)
-            }
+        case 2: // すべての写真
+            return controller.photos
         default:
             return controller.photos
         }
@@ -235,14 +240,6 @@ struct MainView: View {
     var body: some View {
         NavigationView {
             VStack {
-                // セグメント
-                Picker("", selection: $segmentSelection) {
-                    ForEach(0..<segments.count, id: \.self) { i in
-                        Text(segments[i])
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
 
                 // 写真グリッド + 右端スクロール
                 ScrollViewReader { proxy in
@@ -250,22 +247,51 @@ struct MainView: View {
                         ScrollView {
                             LazyVGrid(columns: columns, spacing: 10) {
                                 ForEach(filteredPhotos.indices, id: \.self) { index in
-                                    PhotoGridCell(
-                                        photo: filteredPhotos[index],
-                                        isSelected: selectedPhotos.contains(index)
-                                    )
-                                    .id(index)
-                                    .onTapGesture {
-                                        if !selectedPhotos.isEmpty {
-                                            if selectedPhotos.contains(index) {
-                                                selectedPhotos.remove(index)
+                                    let photo = filteredPhotos[index]
+                                    let isSelected = selectedPhotos.contains(index)
+                                    let uiImage = (photo.imageData != nil) ? UIImage(data: photo.imageData!) : nil
+
+                                    PhotoGridCell(photo: photo, isSelected: isSelected)
+                                        .id(index)
+                                        .onTapGesture {
+                                            if !selectedPhotos.isEmpty {
+                                                if isSelected {
+                                                    selectedPhotos.remove(index)
+                                                } else {
+                                                    selectedPhotos.insert(index)
+                                                }
                                             } else {
-                                                selectedPhotos.insert(index)
+                                                selectedIndex = index
                                             }
-                                        } else {
-                                            selectedIndex = index
                                         }
-                                    }
+                                        .overlay(isSelected ? Color.blue.opacity(0.3).cornerRadius(8) : nil)
+                                        .contextMenu {
+                                            Button(action: {
+                                                if isSelected {
+                                                    selectedPhotos.remove(index)
+                                                } else {
+                                                    selectedPhotos.insert(index)
+                                                }
+                                            }) {
+                                                Text(isSelected ? "選択解除" : "選択")
+                                                Image(systemName: isSelected ? "circle" : "checkmark.circle")
+                                            }
+
+                                            if let uiImage = uiImage {
+                                                Button {
+                                                    controller.saveImageToCameraRoll(uiImage)
+                                                } label: {
+                                                    Label("保存", systemImage: "square.and.arrow.down")
+                                                }
+                                            }
+
+                                            Button(action: {
+                                                controller.deletePhoto(at: index)
+                                            }) {
+                                                Text("削除")
+                                                Image(systemName: "trash")
+                                            }
+                                        }
                                 }
                             }
                             .padding()
@@ -336,10 +362,36 @@ struct MainView: View {
                         )
                     }
                 }
+                
+                // ↓ここにセグメントを下部に置く
+                    if selectedIndex == nil {
+                        Picker("", selection: $segmentSelection) {
+                            ForEach(0..<segments.count, id: \.self) { i in
+                                Text(segments[i])
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .padding()
+                    }
             }
             .navigationTitle("写真")
         }
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showPicker) {
+            PhotoPicker { images, assets in
+                for (i, image) in images.enumerated() {
+                    let creationDate = (i < assets.count) ? assets[i].creationDate ?? Date() : Date()
+                    controller.addPhoto(image, creationDate: creationDate)
+                }
+            }
+        }
+
+        .fullScreenCover(isPresented: $showSearch) {
+            SearchView(controller: controller, isPresented: $showSearch)
+        }
+        .fullScreenCover(isPresented: $showAlbum) {
+            FolderListView(controller: controller) // ← 仮のアルバム画面
+        }
     }
 }
 

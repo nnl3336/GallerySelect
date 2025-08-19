@@ -198,13 +198,279 @@ extension ContentView {
 
 //
 
-struct MainView: View {
-    @ObservedObject var controller: PhotoController
-    @State private var selectedPhotos = Set<Int>()
-    @State private var selectedIndex: Int? = nil
+// MARK: - PhotoLoader (非同期画像ロード)
+class PhotoLoader: ObservableObject {
+    @Published var image: UIImage?
+    private let photo: Photo
+
+    init(photo: Photo) {
+        self.photo = photo
+        loadImage()
+    }
+
+    private func loadImage() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            if let data = self.photo.imageData,
+               let loaded = UIImage(data: data) {
+                DispatchQueue.main.async {
+                    self.image = loaded
+                }
+            }
+        }
+    }
+}
+
+// MARK: - PhotoGridCell
+struct PhotoGridCell: View {
+    @StateObject private var loader: PhotoLoader
+    var isSelected: Bool
+
+    init(photo: Photo, isSelected: Bool) {
+        _loader = StateObject(wrappedValue: PhotoLoader(photo: photo))
+        self.isSelected = isSelected
+    }
 
     var body: some View {
-        PhotoGridView(controller: controller, selectedPhotos: $selectedPhotos, selectedIndex: $selectedIndex)
+        ZStack(alignment: .topTrailing) {
+            if let image = loader.image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(height: 100)
+                    .clipped()
+            } else {
+                Color.gray.opacity(0.1)
+                    .frame(height: 100)
+            }
+
+            if isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.blue)
+                    .padding(5)
+            }
+        }
+        .cornerRadius(8)
+    }
+}
+
+// MARK: - MainView
+struct MainView: View {
+    @ObservedObject var controller: PhotoController
+    @State private var selectedIndex: Int? = nil
+    @State private var selectedPhotos = Set<Int>()
+    @State private var showPicker = false
+    @State private var showSearch = false
+    @State private var showFolderSheet = false
+    @State private var showAlbum = false
+    @State private var segmentSelection = 2
+
+    let segments = ["後ろの月", "前の月", "すべての写真"]
+    @State private var showFastScroll = false
+    @State private var dragPosition: CGFloat = 0
+
+    let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
+
+    var filteredPhotos: [Photo] {
+        switch segmentSelection {
+        case 0: // 後ろの月
+            return controller.photos.filter { photo in
+                guard let date = photo.creationDate else { return false }
+                return Calendar.current.isDate(date, equalTo: Date().addingTimeInterval(30*24*60*60), toGranularity: .month)
+            }
+        case 1: // 前の月
+            return controller.photos.filter { photo in
+                guard let date = photo.creationDate else { return false }
+                return Calendar.current.isDate(date, equalTo: Date().addingTimeInterval(-30*24*60*60), toGranularity: .month)
+            }
+        case 2:
+            return controller.photos
+        default:
+            return controller.photos
+        }
+    }
+
+    var groupedByMonth: [String: [Photo]] {
+        Dictionary(grouping: filteredPhotos) { photo in
+            let date = photo.creationDate ?? Date()
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy/MM"
+            return formatter.string(from: date)
+        }
+    }
+
+    var monthStartIndex: [String: Int] {
+        var dict: [String: Int] = [:]
+        let sortedMonths = groupedByMonth.keys.sorted(by: >)
+        for month in sortedMonths {
+            if let firstPhoto = groupedByMonth[month]?.first,
+               let index = filteredPhotos.firstIndex(of: firstPhoto) {
+                dict[month] = index
+            }
+        }
+        return dict
+    }
+
+    var body: some View {
+        NavigationView {
+            VStack {
+                ScrollViewReader { proxy in
+                    ZStack(alignment: .trailing) {
+                        ScrollView {
+                            LazyVStack(pinnedViews: [.sectionHeaders]) {
+                                ForEach(groupedByMonth.keys.sorted(by: >), id: \.self) { month in
+                                    Section {
+                                        let photosInMonth = groupedByMonth[month] ?? []
+                                        LazyVGrid(columns: columns, spacing: 10) {
+                                            ForEach(photosInMonth.indices, id: \.self) { indexInMonth in
+                                                let photo = photosInMonth[indexInMonth]
+                                                let globalIndex = filteredPhotos.firstIndex(of: photo) ?? 0
+                                                let isSelected = selectedPhotos.contains(globalIndex)
+
+                                                PhotoGridCell(photo: photo, isSelected: isSelected)
+                                                    .id(globalIndex)
+                                                    .onTapGesture {
+                                                        if !selectedPhotos.isEmpty {
+                                                            if isSelected {
+                                                                selectedPhotos.remove(globalIndex)
+                                                            } else {
+                                                                selectedPhotos.insert(globalIndex)
+                                                            }
+                                                        } else {
+                                                            selectedIndex = globalIndex
+                                                        }
+                                                    }
+                                            }
+                                        }
+                                        .padding(.horizontal)
+                                    } header: {
+                                        HStack {
+                                            Text(month)
+                                                .font(.headline)
+                                                .padding(.leading)
+                                            Spacer()
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .background(.thinMaterial)
+                                    }
+                                }
+                            }
+                            .padding(.top)
+                        }
+
+                        // 右端スクロールバー
+                        if showFastScroll {
+                            VStack {
+                                Spacer()
+                                Rectangle()
+                                    .fill(Color.gray.opacity(0.3))
+                                    .frame(width: 30, height: 150)
+                                    .cornerRadius(15)
+                                    .overlay(
+                                        Circle()
+                                            .fill(Color.blue)
+                                            .frame(width: 30, height: 30)
+                                            .offset(y: dragPosition)
+                                            .gesture(
+                                                DragGesture()
+                                                    .onChanged { value in
+                                                        let totalHeight: CGFloat = 150
+                                                        let y = min(max(value.location.y, 0), totalHeight)
+                                                        dragPosition = y - totalHeight/2
+                                                        let ratio = y / totalHeight
+                                                        let index = Int(ratio * CGFloat(max(filteredPhotos.count-1, 0)))
+                                                        withAnimation(.linear(duration: 0.05)) {
+                                                            proxy.scrollTo(index, anchor: .top)
+                                                        }
+                                                    }
+                                            )
+                                    )
+                                Spacer()
+                            }
+                            .frame(width: 40)
+                            .padding(.trailing, 8)
+                        }
+
+                        // フルスクリーンスライダー
+                        if let index = selectedIndex {
+                            PhotoSliderView(
+                                fetchController: controller,
+                                selectedIndex: index,
+                                onClose: { selectedIndex = nil }
+                            )
+                            .zIndex(1)
+                        }
+
+                        // フローティングボタン
+                        FloatingButtonPanel(
+                            selectedPhotos: $selectedPhotos,
+                            showPicker: $showPicker,
+                            showSearch: $showSearch,
+                            showFolderSheet: $showFolderSheet,
+                            controller: controller
+                        )
+                    }
+                    .onAppear {
+                        if let lastIndex = filteredPhotos.indices.last {
+                            proxy.scrollTo(lastIndex, anchor: .bottom)
+                        }
+                    }
+
+                    // Picker
+                    if selectedIndex == nil {
+                        Picker("", selection: $segmentSelection) {
+                            ForEach(0..<segments.count, id: \.self) { i in
+                                Text(segments[i])
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .padding()
+                        .background(.ultraThinMaterial)
+                        .onChange(of: segmentSelection) { newValue in
+                            let month = segments[newValue]
+                            if let index = monthStartIndex[month] {
+                                withAnimation {
+                                    proxy.scrollTo(index, anchor: .top)
+                                }
+                            } else if month == "すべての写真" {
+                                proxy.scrollTo(0, anchor: .top)
+                            }
+                        }
+                    }
+                }
+
+                if !selectedPhotos.isEmpty {
+                    HStack {
+                        Spacer()
+                        Button("cancel") { selectedPhotos.removeAll() }
+                            .padding(.leading)
+                        Spacer()
+                    }
+                }
+            }
+            .navigationTitle("写真")
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showPicker) {
+            PhotoPicker { images, assets in
+                for (i, image) in images.enumerated() {
+                    let creationDate = (i < assets.count) ? assets[i].creationDate ?? Date() : Date()
+                    controller.addPhoto(image, creationDate: creationDate)
+                }
+            }
+        }
+        .sheet(isPresented: $showFolderSheet) {
+            FolderSheetView(
+                isPresented: $showFolderSheet,
+                selectedPhotos: .constant([]),
+                photos: controller.photos
+            )
+        }
+        .fullScreenCover(isPresented: $showSearch) {
+            SearchView(controller: controller, isPresented: $showSearch)
+        }
+        .fullScreenCover(isPresented: $showAlbum) {
+            FolderListView(controller: controller)
+        }
     }
 }
 

@@ -30,6 +30,7 @@ struct PhotoSliderView: View {
     var onClose: () -> Void
 
     @State private var showOverlay = true
+    @State private var dragOffset = CGSize.zero
     @StateObject private var vm = PhotoSliderViewModel()
 
     var body: some View {
@@ -44,6 +45,8 @@ struct PhotoSliderView: View {
                             .scaledToFit()
                             .frame(width: geo.size.width, height: geo.size.height)
                             .clipped()
+                            .scaleEffect(scaleForDrag())
+                            .offset(dragOffset)
                             .onTapGesture {
                                 withAnimation {
                                     showOverlay.toggle()
@@ -64,16 +67,32 @@ struct PhotoSliderView: View {
                 }
             }
         }
-        // ここで ZStack 全体に上下スワイプを検知
         .gesture(
             DragGesture()
+                .onChanged { value in
+                    dragOffset = value.translation
+                }
                 .onEnded { value in
-                    if value.translation.height > 50 { // 下方向にスワイプ
-                        withAnimation {
+                    if abs(value.translation.height) > 150 {
+                        // スワイプ量が大きい場合は閉じる
+                        withAnimation(.spring()) {
                             onClose()
+                        }
+                    } else {
+                        // 元に戻す
+                        withAnimation(.spring()) {
+                            dragOffset = .zero
                         }
                     }
                 }
         )
+    }
+
+    private func scaleForDrag() -> CGFloat {
+        // 下方向に大きくスワイプしたら縮小
+        let maxOffset: CGFloat = 500
+        let offsetY = min(abs(dragOffset.height), maxOffset)
+        let scale = 1 - (offsetY / maxOffset) * 0.5 // 最大で0.5まで縮小
+        return max(scale, 0.5)
     }
 }

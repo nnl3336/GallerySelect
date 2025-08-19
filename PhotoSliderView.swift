@@ -25,47 +25,80 @@ class PhotoSliderViewModel: ObservableObject {
 }
 
 struct PhotoSliderView: View {
-    @ObservedObject var fetchController: PhotoController
-    @State var selectedIndex: Int
-    var onClose: () -> Void
-
-    @State private var showOverlay = true  // ← オーバーレイ表示/非表示
-    @State private var offset = CGSize.zero
-    @StateObject private var vm = PhotoSliderViewModel()
+    @Binding var selectedIndex: Int?
+    @Binding var photos: [Photo]
+    var namespace: Namespace.ID
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            Color.black.opacity(0.8).ignoresSafeArea()
-            
+        if let selectedIndex {
             TabView(selection: $selectedIndex) {
-                ForEach(fetchController.photos.indices, id: \.self) { index in
-                    GeometryReader { geo in
-                        Image(uiImage: vm.cachedImage(for: index, photos: fetchController.photos))
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: geo.size.width, height: geo.size.height)
-                            .clipped()
-                            .onTapGesture {
-                                withAnimation {
-                                    showOverlay.toggle()  // ← タップでトグル
-                                }
-                            }
-                    }
+                ForEach(photos.indices, id: \.self) { index in
+                    PhotoDetailView(
+                        selectedIndex: $selectedIndex,
+                        photo: $photos[index],
+                        namespace: index == selectedIndex ? namespace : Namespace().wrappedValue
+                    )
                     .tag(index)
                 }
             }
-            .tabViewStyle(PageTabViewStyle(indexDisplayMode: showOverlay ? .always : .never))
-            
-            if showOverlay {
-                Button(action: {
-                    onClose()
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.largeTitle)
-                        .foregroundColor(.white)
-                        .padding()
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .background(Color.black.opacity(0.9))
+            .ignoresSafeArea()
+        }
+    }
+}
+
+
+struct PhotoDetailView: View {
+    @Binding var selectedIndex: Int?
+    @Binding var photo: Photo
+    var namespace: Namespace.ID
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Color.black.opacity(0.9).ignoresSafeArea()
+
+            VStack {
+                Spacer()
+
+                // 画像
+                if let data = photo.imageData, let uiImage = UIImage(data: data) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFit()
+                        .matchedGeometryEffect(id: photo.id, in: namespace)
+                        .onTapGesture {
+                            withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.7, blendDuration: 0.7)) {
+                                selectedIndex = nil
+                            }
+                        }
                 }
+
+                // キャプション入力
+                TextField("キャプションを入力", text: Binding(
+                    get: { photo.note ?? "" },
+                    set: { photo.note = $0 }
+                ))
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .padding()
+                .background(Color.white.opacity(0.2))
+                .cornerRadius(8)
+                .padding(.horizontal)
+            }
+
+            // 閉じるボタン
+            Button(action: {
+                withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.7, blendDuration: 0.7)) {
+                    selectedIndex = nil
+                }
+            }) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.largeTitle)
+                    .foregroundColor(.white)
+                    .padding()
             }
         }
+        .transition(.opacity)
+        .zIndex(1)
     }
 }

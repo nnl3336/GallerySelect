@@ -52,6 +52,8 @@ struct AlbumView: View {
         GridItem(.flexible()),
         GridItem(.flexible())
     ]
+    
+    @Namespace private var namespace
 
     var body: some View {
         ZStack {
@@ -78,14 +80,13 @@ struct AlbumView: View {
             .navigationTitle(folder.name ?? "フォルダ")
 
             // スライダー表示
-            if let index = selectedIndex {
-                PhotoSliderView(
-                    fetchController: controller,
-                    selectedIndex: index,
-                    onClose: { selectedIndex = nil }
-                )
-                .zIndex(1)
-            }
+            // MainView の拡大スライダー呼び出し
+            // MainView の拡大スライダー呼び出し
+            PhotoSliderView(
+                selectedIndex: $selectedIndex,
+                photos: .constant(folder.photosArray),
+                namespace: namespace
+            )
         }
     }
 }

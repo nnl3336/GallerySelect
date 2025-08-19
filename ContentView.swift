@@ -249,8 +249,7 @@ struct MainView: View {
                                 ForEach(filteredPhotos.indices, id: \.self) { index in
                                     let photo = filteredPhotos[index]
                                     let isSelected = selectedPhotos.contains(index)
-                                    let uiImage = (photo.imageData != nil) ? UIImage(data: photo.imageData!) : nil
-
+                                    
                                     PhotoGridCell(photo: photo, isSelected: isSelected)
                                         .id(index)
                                         .onTapGesture {
@@ -264,20 +263,13 @@ struct MainView: View {
                                                 selectedIndex = index
                                             }
                                         }
-                                        .overlay(isSelected ? Color.blue.opacity(0.3).cornerRadius(8) : nil)
                                         .contextMenu {
-                                            Button(action: {
-                                                if isSelected {
-                                                    selectedPhotos.remove(index)
-                                                } else {
-                                                    selectedPhotos.insert(index)
-                                                }
-                                            }) {
-                                                Text(isSelected ? "選択解除" : "選択")
-                                                Image(systemName: isSelected ? "circle" : "checkmark.circle")
+                                            Button(isSelected ? "選択解除" : "選択") {
+                                                if isSelected { selectedPhotos.remove(index) }
+                                                else { selectedPhotos.insert(index) }
                                             }
 
-                                            if let uiImage = uiImage {
+                                            if let uiImage = photo.thumbnail {
                                                 Button {
                                                     controller.saveImageToCameraRoll(uiImage)
                                                 } label: {
@@ -285,11 +277,10 @@ struct MainView: View {
                                                 }
                                             }
 
-                                            Button(action: {
+                                            Button {
                                                 controller.deletePhoto(at: index)
-                                            }) {
-                                                Text("削除")
-                                                Image(systemName: "trash")
+                                            } label: {
+                                                Label("削除", systemImage: "trash")
                                             }
                                         }
                                 }
@@ -410,30 +401,45 @@ struct MainView: View {
 struct PhotoGridCell: View {
     var photo: Photo
     var isSelected: Bool
+    @State private var thumbnail: UIImage?
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            if let data = photo.imageData,
-               let uiImage = UIImage(data: data) {
-                Image(uiImage: uiImage)
+            if let thumb = thumbnail {
+                Image(uiImage: thumb)
                     .resizable()
                     .scaledToFill()
-                    .frame(height: 100)             // 高さ固定
-                    .clipped()                      // はみ出しをカット
+                    .frame(height: 100)
+                    .clipped()
                     .cornerRadius(8)
                     .overlay(
                         isSelected ? Color.blue.opacity(0.3).cornerRadius(8) : nil
                     )
-                    .contentShape(Rectangle())      // ← 見た目通りにタップ判定
+                    .contentShape(Rectangle())
+            } else {
+                Color.gray.frame(height: 100).cornerRadius(8)
             }
+
             if isSelected {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundColor(.white)
                     .padding(5)
             }
         }
+        .onAppear {
+            if thumbnail == nil, let data = photo.imageData,
+               let uiImage = UIImage(data: data) {
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let resized = uiImage.resize(to: CGSize(width: 150, height: 150))
+                    DispatchQueue.main.async {
+                        thumbnail = resized
+                    }
+                }
+            }
+        }
     }
 }
+
 
 
 
@@ -457,6 +463,23 @@ struct PhotoContextMenu: View {
         }
     }
 }
+
+extension Photo {
+    var thumbnail: UIImage? {
+        guard let data = imageData else { return nil }
+        return UIImage(data: data)?.resize(to: CGSize(width: 150, height: 150))
+    }
+}
+
+extension UIImage {
+    func resize(to size: CGSize) -> UIImage {
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { _ in
+            self.draw(in: CGRect(origin: .zero, size: size))
+        }
+    }
+}
+
 
 struct FloatingButtonPanel: View {
     @Binding var selectedPhotos: Set<Int>

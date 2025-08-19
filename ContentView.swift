@@ -200,146 +200,64 @@ extension ContentView {
 struct MainView: View {
     @ObservedObject var controller: PhotoController
     @State private var selectedIndex: Int? = nil
-    @State private var selectedPhotos = Set<Int>()
-    @State private var showPicker = false
-    @State private var showSearch = false
-    @State private var showFolderSheet = false
-
-    // セグメント
-    @State private var segmentSelection = 0
-    let segments = ["すべての写真", "前の月", "後ろの月"]
-
-    // 右端スクロールバー
-    @State private var showFastScroll = false
-    @State private var dragPosition: CGFloat = 0
-
-    let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
-
-    var filteredPhotos: [Photo] {
-        switch segmentSelection {
-        case 1: // 前の月
-            return controller.photos.filter { photo in
-                guard let date = photo.creationDate else { return false }
-                return Calendar.current.isDate(date, equalTo: Date().addingTimeInterval(-30*24*60*60), toGranularity: .month)
-            }
-        case 2: // 後ろの月
-            return controller.photos.filter { photo in
-                guard let date = photo.creationDate else { return false }
-                return Calendar.current.isDate(date, equalTo: Date().addingTimeInterval(30*24*60*60), toGranularity: .month)
-            }
-        default:
-            return controller.photos
-        }
-    }
-    
-    @State private var enlargedIndex: Int? = nil
-
+    @Namespace private var namespace
 
     var body: some View {
-        NavigationView {
-            VStack {
-                // セグメント
-                Picker("", selection: $segmentSelection) {
-                    ForEach(0..<segments.count, id: \.self) { i in
-                        Text(segments[i])
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-
-                // 写真グリッド + 右端スクロール
-                ScrollViewReader { proxy in
-                    ZStack(alignment: .trailing) {
-                        ScrollView {
-                            LazyVGrid(columns: columns, spacing: 10) {
-                                ForEach(filteredPhotos.indices, id: \.self) { index in
-                                    PhotoGridCell(
-                                        photo: filteredPhotos[index],
-                                        isSelected: selectedPhotos.contains(index)
-                                    )
-                                    .frame(height: enlargedIndex == index ? 300 : 100) // 高さ変更
-                                    .animation(.spring(), value: enlargedIndex)
-                                    .onTapGesture {
-                                        if enlargedIndex == index {
-                                            enlargedIndex = nil // 元に戻す
-                                        } else {
-                                            enlargedIndex = index // 拡大
-                                        }
+        ZStack {
+            ScrollView {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    ForEach(controller.photos.indices, id: \.self) { index in
+                        if let data = controller.photos[index].imageData,
+                           let uiImage = UIImage(data: data) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(height: 100)
+                                .clipped()
+                                .cornerRadius(8)
+                                .matchedGeometryEffect(id: index, in: namespace)
+                                .onTapGesture {
+                                    withAnimation(.spring()) {
+                                        selectedIndex = index
                                     }
                                 }
-                            }
-                            .padding()
-                            .gesture(DragGesture()
-                                        .onChanged { _ in
-                                            showFastScroll = true
-                                        }
-                                        .onEnded { _ in
-                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                                                showFastScroll = false
-                                            }
-                                        }
-                            )
                         }
-
-                        // 右端スクロールハンドル
-                        if showFastScroll {
-                            VStack {
-                                Spacer()
-                                Rectangle()
-                                    .fill(Color.gray.opacity(0.3))
-                                    .frame(width: 30, height: 150)
-                                    .cornerRadius(15)
-                                    .overlay(
-                                        Circle()
-                                            .fill(Color.blue)
-                                            .frame(width: 30, height: 30)
-                                            .offset(y: dragPosition)
-                                            .gesture(
-                                                DragGesture()
-                                                    .onChanged { value in
-                                                        let totalHeight: CGFloat = 150
-                                                        let y = min(max(value.location.y, 0), totalHeight)
-                                                        dragPosition = y - totalHeight/2
-                                                        let ratio = y / totalHeight
-                                                        let index = Int(ratio * CGFloat(max(filteredPhotos.count-1, 0)))
-                                                        withAnimation(.linear(duration: 0.05)) {
-                                                            proxy.scrollTo(index, anchor: .top)
-                                                        }
-                                                    }
-                                            )
-                                    )
-                                Spacer()
-                            }
-                            .frame(width: 40)
-                            .padding(.trailing, 8)
-                            .transition(.opacity)
-                            .animation(.easeInOut, value: showFastScroll)
-                        }
-
-                        // フルスクリーンスライダー
-                        if let index = selectedIndex {
-                            PhotoSliderView(
-                                fetchController: controller,
-                                selectedIndex: index,
-                                onClose: { selectedIndex = nil }
-                            )
-                            .zIndex(1)
-                        }
-
-                        // フローティングボタン
-                        FloatingButtonPanel(
-                            selectedPhotos: $selectedPhotos,
-                            showPicker: $showPicker,
-                            showSearch: $showSearch,
-                            showFolderSheet: $showFolderSheet,
-                            controller: controller
-                        )
                     }
                 }
+                .padding()
             }
-            .navigationTitle("写真")
+
+            // 拡大表示
+            if let index = selectedIndex,
+               let data = controller.photos[index].imageData,
+               let uiImage = UIImage(data: data) {
+                ZStack(alignment: .topTrailing) {
+                    Color.black.opacity(0.9).ignoresSafeArea()
+
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFit()
+                        .matchedGeometryEffect(id: index, in: namespace)
+                        .onTapGesture {
+                            withAnimation(.spring()) {
+                                selectedIndex = nil
+                            }
+                        }
+
+                    Button(action: {
+                        withAnimation(.spring()) {
+                            selectedIndex = nil
+                        }
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.largeTitle)
+                            .foregroundColor(.white)
+                            .padding()
+                    }
+                }
+                .transition(.opacity)
+            }
         }
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

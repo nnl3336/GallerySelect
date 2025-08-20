@@ -11,15 +11,17 @@ import SwiftUI
 struct GallerySelectApp: App {
     let persistenceController = PersistenceController.shared
     @StateObject private var photoController: PhotoController
+    @StateObject private var foldercontroller: FolderController
 
     init() {
         let context = persistenceController.container.viewContext
         _photoController = StateObject(wrappedValue: PhotoController(context: context))
+        _foldercontroller = StateObject(wrappedValue: FolderController(context: context))
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView(controller: photoController)
+            ContentView(photocontroller: photoController, foldercontroller: foldercontroller)
                 .environment(\.managedObjectContext, persistenceController.container.viewContext)
         }
     }

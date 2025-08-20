@@ -8,7 +8,8 @@
 import SwiftUI
 
 struct FolderListView: View {
-    @ObservedObject var controller: PhotoController
+    @ObservedObject var photocontroller: PhotoController
+    @ObservedObject var foldercontroller: FolderController
     @State private var selectedFolder: Folder? = nil
 
     let columns = [
@@ -20,8 +21,10 @@ struct FolderListView: View {
         NavigationView {
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 10) {
-                    ForEach(controller.folders, id: \.self) { folder in
-                        NavigationLink(destination: AlbumView(folder: folder, controller: controller)) {
+                    ForEach(foldercontroller.folders, id: \.self) { folder in
+                        NavigationLink(destination: AlbumView(folder: folder,
+                                                              photocontroller: photocontroller,
+                                                              foldercontroller: foldercontroller)) {
                             ZStack {
                                 Color.gray.opacity(0.3)
                                     .cornerRadius(8)
@@ -44,7 +47,8 @@ struct FolderListView: View {
 // MARK: - AlbumView（仮）
 struct AlbumView: View {
     var folder: Folder
-    @ObservedObject var controller: PhotoController
+    @ObservedObject var photocontroller: PhotoController
+    @ObservedObject var foldercontroller: FolderController
     @State private var selectedIndex: Int? = nil
 
     let columns = [
@@ -80,7 +84,7 @@ struct AlbumView: View {
             // スライダー表示
             if let index = selectedIndex {
                 PhotoSliderView(
-                    fetchController: controller,
+                    fetchController: photocontroller,
                     selectedIndex: index,
                     onClose: { selectedIndex = nil }
                 )

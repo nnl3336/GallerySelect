@@ -9,6 +9,84 @@ import SwiftUI
 import CoreData
 import Photos
 
+class MainViewModel: ObservableObject {
+    // MARK: - UI State
+    @Published var selectedIndex: Int? = nil
+    @Published var selectedPhotos: Set<Int> = []
+    @Published var showPicker: Bool = false
+    @Published var showSearch: Bool = false
+    @Published var showFolderSheet: Bool = false
+    @Published var showAlbum: Bool = false
+    @Published var segmentSelection: Int = 2
+    @Published var showFastScroll: Bool = false
+    @Published var dragPosition: CGFloat = 0
+
+    let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
+    let segments = ["後ろの月", "前の月", "すべての写真"]
+
+    // MARK: - Photos
+    @Published var allPhotos: [Photo] = [] {
+        didSet { applyFilter() }
+    }
+    @Published var filteredPhotos: [Photo] = []
+    @Published var groupedByMonth: [String: [Photo]] = [:]
+    @Published var monthStartIndex: [String: Int] = [:]
+
+    // MARK: - Filtering
+    func applyFilter() {
+        switch segmentSelection {
+        case 0:
+            filteredPhotos = allPhotos.filter { photo in
+                guard let date = photo.creationDate else { return false }
+                return Calendar.current.isDate(date, equalTo: Date().addingTimeInterval(30*24*60*60), toGranularity: .month)
+            }
+        case 1:
+            filteredPhotos = allPhotos.filter { photo in
+                guard let date = photo.creationDate else { return false }
+                return Calendar.current.isDate(date, equalTo: Date().addingTimeInterval(-30*24*60*60), toGranularity: .month)
+            }
+        default:
+            filteredPhotos = allPhotos
+        }
+        updateGrouping()
+    }
+
+    private func updateGrouping() {
+        // 月ごとにグループ化
+        groupedByMonth = Dictionary(grouping: filteredPhotos) { photo in
+            let date = photo.creationDate ?? Date()
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy/MM"
+            return formatter.string(from: date)
+        }
+
+        // 月ごとの先頭写真インデックス
+        var dict: [String: Int] = [:]
+        let sortedMonths = groupedByMonth.keys.sorted(by: >)
+        for month in sortedMonths {
+            if let firstPhoto = groupedByMonth[month]?.first,
+               let index = filteredPhotos.firstIndex(of: firstPhoto) {
+                dict[month] = index
+            }
+        }
+        monthStartIndex = dict
+    }
+
+    // セグメント切り替え時
+    func selectSegment(_ index: Int) {
+        segmentSelection = index
+        applyFilter()
+    }
+
+    // ドラッグによるスクロール位置計算
+    func scrollIndex(fromDrag value: CGFloat, totalHeight: CGFloat) -> Int {
+        let y = min(max(value, 0), totalHeight)
+        let ratio = y / totalHeight
+        return Int(ratio * CGFloat(max(filteredPhotos.count-1, 0)))
+    }
+}
+
+
 // MARK: - FRCラッパークラス
 class FolderController: NSObject, ObservableObject, NSFetchedResultsControllerDelegate {
     @Published var folders: [Folder] = []

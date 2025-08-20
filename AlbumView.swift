@@ -100,26 +100,3 @@ extension Folder {
 }
 
 
-// 写真セルを別Viewに切り出し
-class PhotoCell: UICollectionViewCell {
-    let imageView = UIImageView()
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        contentView.addSubview(imageView)
-        imageView.frame = contentView.bounds
-        imageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        imageView.contentMode = .scaleAspectFill
-        imageView.clipsToBounds = true
-    }
-
-    required init?(coder: NSCoder) { fatalError() }
-
-    func configure(with photo: Photo) {
-        if let data = photo.imageData {
-            imageView.image = UIImage(data: data)
-        } else {
-            imageView.image = nil
-        }
-    }
-}

@@ -8,12 +8,6 @@
 import SwiftUI
 import PhotosUI
 import CoreData
-
-import SwiftUI
-import PhotosUI
-import CoreData
-
-import SwiftUI
 import Photos
 
 // MARK: - SwiftUI ContentView
@@ -34,27 +28,41 @@ struct ContentView: View {
                 }
             }
             .transition(.opacity)
+        }
+    }
+    
+    func deletePhoto(at index: Int) {
+        let photo = controller.photos[index]  // ← controller.photos に変更
+        viewContext.delete(photo)
+        
+        do {
+            try viewContext.save()
+        } catch {
+            print("削除エラー: \(error)")
+        }
+    }
+    
+    func saveImageToCameraRoll(_ image: UIImage, creationDate: Date? = nil) {
+        PHPhotoLibrary.requestAuthorization { status in
+            guard status == .authorized || status == .limited else {
+                print("権限なし")
+                return
+            }
 
-            // 画面下の切り替えボタン
-            /*HStack {
-                Button {
-                    withAnimation { currentScreen = .photos }
-                } label: {
-                    Label("写真", systemImage: "photo")
-                        .padding()
+            PHPhotoLibrary.shared().performChanges({
+                let request = PHAssetChangeRequest.creationRequestForAsset(from: image)
+                if let date = creationDate {
+                    request.creationDate = date
                 }
-
-                Spacer()
-
-                Button {
-                    withAnimation { currentScreen = .albums }
-                } label: {
-                    Label("アルバム", systemImage: "rectangle.stack")
-                        .padding()
+            }) { success, error in
+                DispatchQueue.main.async { // UI 更新は main thread
+                    if success {
+                        print("保存成功")
+                    } else {
+                        print("保存失敗: \(error?.localizedDescription ?? "")")
+                    }
                 }
             }
-            .padding()
-            .background(.ultraThinMaterial)*/
         }
     }
 }
@@ -157,44 +165,6 @@ struct ContentView: View {
     }
 }*/
 
-
-extension ContentView {
-    
-    func deletePhoto(at index: Int) {
-        let photo = controller.photos[index]  // ← controller.photos に変更
-        viewContext.delete(photo)
-        
-        do {
-            try viewContext.save()
-        } catch {
-            print("削除エラー: \(error)")
-        }
-    }
-    
-    func saveImageToCameraRoll(_ image: UIImage, creationDate: Date? = nil) {
-        PHPhotoLibrary.requestAuthorization { status in
-            guard status == .authorized || status == .limited else {
-                print("権限なし")
-                return
-            }
-
-            PHPhotoLibrary.shared().performChanges({
-                let request = PHAssetChangeRequest.creationRequestForAsset(from: image)
-                if let date = creationDate {
-                    request.creationDate = date
-                }
-            }) { success, error in
-                DispatchQueue.main.async { // UI 更新は main thread
-                    if success {
-                        print("保存成功")
-                    } else {
-                        print("保存失敗: \(error?.localizedDescription ?? "")")
-                    }
-                }
-            }
-        }
-    }
-}
 
 // MARK: - SwiftUI MainView
 struct MainView: View {

@@ -10,11 +10,113 @@ import CoreData
 import Photos
 
 // MARK: - FRCラッパークラス
-class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDelegate {
-    @Published var photos: [Photo] = []
+class FolderController: NSObject, ObservableObject, NSFetchedResultsControllerDelegate {
     @Published var folders: [Folder] = []
     
-    /*private*/ let context: NSManagedObjectContext
+    private let context: NSManagedObjectContext
+    private let frc: NSFetchedResultsController<Folder>
+    
+    init(context: NSManagedObjectContext) {
+        self.context = context
+        
+        let fetchRequest: NSFetchRequest<Folder> = Folder.fetchRequest()
+        fetchRequest.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
+        fetchRequest.fetchBatchSize = 20
+        
+        frc = NSFetchedResultsController(
+            fetchRequest: fetchRequest,
+            managedObjectContext: context,
+            sectionNameKeyPath: nil,
+            cacheName: nil
+        )
+        
+        super.init()
+        frc.delegate = self
+        
+        do {
+            try frc.performFetch()
+            folders = frc.fetchedObjects ?? []
+        } catch {
+            print("Folder fetch error: \(error)")
+        }
+    }
+    
+    // MARK: - Folder CRUD
+    
+    func fetchFolders() {
+        do {
+            folders = try context.fetch(Folder.fetchRequest())
+                .sorted { ($0.name ?? "") < ($1.name ?? "") }
+        } catch {
+            print("Folder fetch error: \(error)")
+        }
+    }
+    
+    func createFolder(name: String, photos: [Photo] = []) {
+        let newFolder = Folder(context: context)
+        newFolder.name = name
+        newFolder.addToPhotos(NSSet(array: photos))
+        
+        do {
+            try context.save()
+            fetchFolders()
+        } catch {
+            print("Folder save error: \(error)")
+        }
+    }
+    
+    func deleteFolder(at index: Int) {
+        let folder = folders[index]
+        context.delete(folder)
+        
+        do {
+            try context.save()
+            fetchFolders()
+        } catch {
+            print("Folder delete error: \(error)")
+        }
+    }
+    
+    func addPhotos(_ photos: [Photo], to folderIndex: Int) {
+        guard folders.indices.contains(folderIndex) else { return }
+        let folder = folders[folderIndex]
+        folder.addToPhotos(NSSet(array: photos))
+        
+        do {
+            try context.save()
+            fetchFolders()
+        } catch {
+            print("Add photos to folder error: \(error)")
+        }
+    }
+    
+    func removePhotos(_ photos: [Photo], from folderIndex: Int) {
+        guard folders.indices.contains(folderIndex) else { return }
+        let folder = folders[folderIndex]
+        folder.removeFromPhotos(NSSet(array: photos))
+        
+        do {
+            try context.save()
+            fetchFolders()
+        } catch {
+            print("Remove photos from folder error: \(error)")
+        }
+    }
+    
+    // NSFetchedResultsControllerDelegate
+    func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
+        guard let updatedFolders = controller.fetchedObjects as? [Folder] else { return }
+        DispatchQueue.main.async {
+            self.folders = updatedFolders
+        }
+    }
+}
+
+// MARK: - FRCラッパークラス
+class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDelegate {
+    @Published var photos: [Photo] = []
+    
+    private let context: NSManagedObjectContext
     private let frc: NSFetchedResultsController<Photo>
     
     init(context: NSManagedObjectContext) {
@@ -22,7 +124,7 @@ class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDel
         
         let fetchRequest: NSFetchRequest<Photo> = Photo.fetchRequest()
         fetchRequest.sortDescriptors = [NSSortDescriptor(keyPath: \Photo.creationDate, ascending: true)]
-        fetchRequest.fetchBatchSize = 20   // ← ここ
+        fetchRequest.fetchBatchSize = 20
         
         frc = NSFetchedResultsController(
             fetchRequest: fetchRequest,
@@ -40,64 +142,32 @@ class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDel
         } catch {
             print("Fetch error: \(error)")
         }
-        
-        fetchFolders() // ←追加
-
     }
     
-    func fetchFolders() {
-        let request: NSFetchRequest<Folder> = Folder.fetchRequest()
-        request.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
-        
-        do {
-            folders = try context.fetch(request)
-        } catch {
-            print("Folder fetch error: \(error)")
-        }
-    }
-
-    
-    // フォルダ作成メソッド
-    func createFolder(with selectedIndices: Set<Int>, name: String) {
-        let newFolder = Folder(context: context)
-        newFolder.name = name
-        
-        let selectedPhotos = selectedIndices.compactMap { index in
-            photos.indices.contains(index) ? photos[index] : nil
-        }
-        newFolder.addToPhotos(NSSet(array: selectedPhotos))
-        
-        do {
-            try context.save()
-            fetchFolders() // ←ここで folders を更新
-        } catch {
-            print("フォルダ保存エラー: \(error)")
-        }
-    }
-
+    // MARK: - Photo CRUD
     
     func fetchPhotos(predicate: NSPredicate? = nil) {
-            let request: NSFetchRequest<Photo> = Photo.fetchRequest()
-            request.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
-            request.predicate = predicate
-
-            do {
-                photos = try context.fetch(request)
-            } catch {
-                print("Fetch error: \(error)")
-            }
+        let request: NSFetchRequest<Photo> = Photo.fetchRequest()
+        request.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
+        request.predicate = predicate
+        
+        do {
+            photos = try context.fetch(request)
+        } catch {
+            print("Fetch error: \(error)")
         }
+    }
     
     func applyFilter(keyword: String, likedOnly: Bool) {
         var predicates: [NSPredicate] = []
-
+        
         if !keyword.isEmpty {
             predicates.append(NSPredicate(format: "note CONTAINS[cd] %@", keyword))
         }
         if likedOnly {
             predicates.append(NSPredicate(format: "isLiked == true"))
         }
-
+        
         let compound = predicates.isEmpty ? nil : NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
         fetchPhotos(predicate: compound)
     }

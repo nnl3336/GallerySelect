@@ -237,8 +237,7 @@ struct MainView: View {
                 ScrollViewReader { proxy in
                     ZStack(alignment: .trailing) {
                         GeometryReader { geo in
-                            PhotoView(photocontroller: photocontroller,
-                                      selectedPhotos: $selectedPhotos)
+                            PhotoView(photocontroller: photocontroller)
                             .frame(width: geo.size.width, height: geo.size.height)
                         }
 
@@ -354,76 +353,88 @@ struct MainView: View {
 }
 
 // MARK: - PhotoView (UICollectionView wrapped)
+
 struct PhotoView: UIViewRepresentable {
     @ObservedObject var photocontroller: PhotoController
-    @Binding var selectedPhotos: Set<Int>
-    
+
     func makeUIView(context: Context) -> UICollectionView {
         let layout = UICollectionViewFlowLayout()
-        layout.itemSize = CGSize(width: 100, height: 100)
         layout.minimumLineSpacing = 5
         layout.minimumInteritemSpacing = 5
+        layout.itemSize = CGSize(width: 100, height: 100) // 固定サイズ
         layout.scrollDirection = .vertical
-        
+
         let collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         collectionView.backgroundColor = .white
         collectionView.dataSource = context.coordinator
         collectionView.delegate = context.coordinator
         collectionView.allowsMultipleSelection = true
-        collectionView.register(UICollectionViewCell.self, forCellWithReuseIdentifier: "Cell")
+        collectionView.register(PhotoCell.self, forCellWithReuseIdentifier: "PhotoCell")
         return collectionView
     }
-    
+
     func updateUIView(_ uiView: UICollectionView, context: Context) {
         uiView.reloadData()
     }
-    
+
     func makeCoordinator() -> Coordinator {
-        Coordinator(controller: photocontroller, selectedPhotos: $selectedPhotos)
+        Coordinator(controller: photocontroller)
     }
-    
+
     // MARK: - Coordinator
     class Coordinator: NSObject, UICollectionViewDataSource, UICollectionViewDelegate {
         var controller: PhotoController
-        @Binding var selectedPhotos: Set<Int>
-        
-        init(controller: PhotoController, selectedPhotos: Binding<Set<Int>>) {
+
+        init(controller: PhotoController) {
             self.controller = controller
-            self._selectedPhotos = selectedPhotos
         }
-        
+
         func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
             controller.photos.count
         }
-        
+
         func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
-            let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "Cell", for: indexPath)
-            
+            let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PhotoCell", for: indexPath) as! PhotoCell
             let photo = controller.photos[indexPath.item]
-            let isSelected = selectedPhotos.contains(indexPath.item)
-            
-            let hosting = UIHostingController(rootView: PhotoGridCell(photo: photo, isSelected: isSelected))
-            hosting.view.frame = cell.contentView.bounds
-            hosting.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-            hosting.view.backgroundColor = .clear
-            
-            cell.contentView.subviews.forEach { $0.removeFromSuperview() }
-            cell.contentView.addSubview(hosting.view)
-            
+            cell.configure(with: photo)
             return cell
         }
-        
-        // MARK: - Tap handling
+
         func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-            if selectedPhotos.contains(indexPath.item) {
-                selectedPhotos.remove(indexPath.item)
-            } else {
-                selectedPhotos.insert(indexPath.item)
-            }
-            collectionView.reloadItems(at: [indexPath])
+            print("Tapped photo at \(indexPath.item)")
         }
     }
 }
+
+// MARK: - UICollectionViewCell
+class UICollectionPhotoCell: UICollectionViewCell {
+    private let imageView = UIImageView()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        contentView.addSubview(imageView)
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            imageView.topAnchor.constraint(equalTo: contentView.topAnchor),
+            imageView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+            imageView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            imageView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor)
+        ])
+        imageView.contentMode = .scaleAspectFill
+        imageView.clipsToBounds = true
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func configure(with photo: Photo) {
+        if let data = photo.imageData, let uiImage = UIImage(data: data) {
+            imageView.image = uiImage
+        } else {
+            imageView.image = nil
+        }
+    }
+}
+
 
 
 class PhotoCollectionViewController: UICollectionViewController {

@@ -11,7 +11,7 @@ import CoreData
 import Photos
 
 // MARK: - SwiftUI ContentView
-struct ContentView: View {
+struct ContentView: View  {
     @Environment(\.managedObjectContext) private var viewContext
     
     @ObservedObject var photocontroller: PhotoController

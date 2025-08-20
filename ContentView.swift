@@ -23,7 +23,7 @@ struct ContentView: View {
             Group {
                 switch currentScreen {
                 case .photos:
-                    MainView(controller: photocontroller, foldercontroller: foldercontroller)
+                    MainView(photocontroller: photocontroller, foldercontroller: foldercontroller)
                 case .albums:
                     FolderListView(photocontroller: photocontroller,
                                    foldercontroller: foldercontroller)
@@ -170,7 +170,7 @@ struct ContentView: View {
 
 // MARK: - SwiftUI MainView
 struct MainView: View {
-    @ObservedObject var controller: PhotoController
+    @ObservedObject var photocontroller: PhotoController
     @ObservedObject var foldercontroller: FolderController
 
     @State private var selectedIndex: Int? = nil
@@ -190,17 +190,17 @@ struct MainView: View {
     var filteredPhotos: [Photo] {
         switch segmentSelection {
         case 0: // 後ろの月
-            return controller.photos.filter { photo in
+            return photocontroller.photos.filter { photo in
                 guard let date = photo.creationDate else { return false }
                 return Calendar.current.isDate(date, equalTo: Date().addingTimeInterval(30*24*60*60), toGranularity: .month)
             }
         case 1: // 前の月
-            return controller.photos.filter { photo in
+            return photocontroller.photos.filter { photo in
                 guard let date = photo.creationDate else { return false }
                 return Calendar.current.isDate(date, equalTo: Date().addingTimeInterval(-30*24*60*60), toGranularity: .month)
             }
         default: // すべての写真
-            return controller.photos
+            return photocontroller.photos
         }
     }
 
@@ -236,7 +236,11 @@ struct MainView: View {
             VStack {
                 ScrollViewReader { proxy in
                     ZStack(alignment: .trailing) {
-                        PhotoView(controller: controller)
+                        GeometryReader { geo in
+                            PhotoView(photocontroller: photocontroller,
+                                      selectedPhotos: $selectedPhotos)
+                            .frame(width: geo.size.width, height: geo.size.height)
+                        }
 
                         if showFastScroll {
                             VStack {
@@ -269,7 +273,7 @@ struct MainView: View {
 
                         if let index = selectedIndex {
                             PhotoSliderView(
-                                fetchController: controller,
+                                fetchController: photocontroller,
                                 selectedIndex: index,
                                 onClose: { selectedIndex = nil }
                             )
@@ -281,7 +285,7 @@ struct MainView: View {
                             showPicker: $showPicker,
                             showSearch: $showSearch,
                             showFolderSheet: $showFolderSheet,
-                            photocontroller: controller,       // ← PhotoController を渡す
+                            photocontroller: photocontroller,       // ← PhotoController を渡す
                             foldercontroller: foldercontroller // ← FolderController を渡す
                         )
 
@@ -329,7 +333,7 @@ struct MainView: View {
             PhotoPicker { images, assets in
                 for (i, image) in images.enumerated() {
                     let creationDate = (i < assets.count) ? assets[i].creationDate ?? Date() : Date()
-                    controller.addPhoto(image, creationDate: creationDate)
+                    photocontroller.addPhoto(image, creationDate: creationDate)
                 }
             }
         }
@@ -337,63 +341,162 @@ struct MainView: View {
             FolderSheetView(
                 isPresented: $showFolderSheet,
                 selectedPhotos: .constant([]),
-                photos: controller.photos
+                photos: photocontroller.photos
             )
         }
         .fullScreenCover(isPresented: $showSearch) {
-            SearchView(controller: controller, isPresented: $showSearch)
+            SearchView(controller: photocontroller, isPresented: $showSearch)
         }
         .fullScreenCover(isPresented: $showAlbum) {
-            FolderListView(photocontroller: controller, foldercontroller: foldercontroller)
+            FolderListView(photocontroller: photocontroller, foldercontroller: foldercontroller)
         }
     }
 }
 
+// MARK: - PhotoView (UICollectionView wrapped)
 struct PhotoView: UIViewRepresentable {
-    @ObservedObject var controller: PhotoController
-
+    @ObservedObject var photocontroller: PhotoController
+    @Binding var selectedPhotos: Set<Int>
+    
     func makeUIView(context: Context) -> UICollectionView {
         let layout = UICollectionViewFlowLayout()
         layout.itemSize = CGSize(width: 100, height: 100)
-        layout.minimumInteritemSpacing = 5
         layout.minimumLineSpacing = 5
-
+        layout.minimumInteritemSpacing = 5
+        layout.scrollDirection = .vertical
+        
         let collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         collectionView.backgroundColor = .white
         collectionView.dataSource = context.coordinator
+        collectionView.delegate = context.coordinator
+        collectionView.allowsMultipleSelection = true
         collectionView.register(UICollectionViewCell.self, forCellWithReuseIdentifier: "Cell")
         return collectionView
     }
-
+    
     func updateUIView(_ uiView: UICollectionView, context: Context) {
         uiView.reloadData()
     }
-
+    
     func makeCoordinator() -> Coordinator {
-        Coordinator(controller: controller)
+        Coordinator(controller: photocontroller, selectedPhotos: $selectedPhotos)
     }
-
-    class Coordinator: NSObject, UICollectionViewDataSource {
+    
+    // MARK: - Coordinator
+    class Coordinator: NSObject, UICollectionViewDataSource, UICollectionViewDelegate {
         var controller: PhotoController
-
-        init(controller: PhotoController) {
+        @Binding var selectedPhotos: Set<Int>
+        
+        init(controller: PhotoController, selectedPhotos: Binding<Set<Int>>) {
             self.controller = controller
+            self._selectedPhotos = selectedPhotos
         }
-
+        
         func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-            return controller.photos.count
+            controller.photos.count
         }
-
+        
         func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
             let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "Cell", for: indexPath)
-            cell.backgroundColor = .red
+            
+            let photo = controller.photos[indexPath.item]
+            let isSelected = selectedPhotos.contains(indexPath.item)
+            
+            let hosting = UIHostingController(rootView: PhotoGridCell(photo: photo, isSelected: isSelected))
+            hosting.view.frame = cell.contentView.bounds
+            hosting.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            hosting.view.backgroundColor = .clear
+            
+            cell.contentView.subviews.forEach { $0.removeFromSuperview() }
+            cell.contentView.addSubview(hosting.view)
+            
             return cell
+        }
+        
+        // MARK: - Tap handling
+        func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+            if selectedPhotos.contains(indexPath.item) {
+                selectedPhotos.remove(indexPath.item)
+            } else {
+                selectedPhotos.insert(indexPath.item)
+            }
+            collectionView.reloadItems(at: [indexPath])
         }
     }
 }
 
 
-struct PhotoGridCell: View {
+class PhotoCollectionViewController: UICollectionViewController {
+
+    var photos: [Photo] = []
+
+    init() {
+        let layout = UICollectionViewFlowLayout()
+        layout.minimumLineSpacing = 5
+        layout.minimumInteritemSpacing = 5
+        super.init(collectionViewLayout: layout)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        collectionView.backgroundColor = .white
+        collectionView.register(PhotoCell.self, forCellWithReuseIdentifier: "PhotoCell")
+        collectionView.allowsMultipleSelection = true
+    }
+
+    override func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+        return photos.count
+    }
+
+    override func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+        let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PhotoCell", for: indexPath) as! PhotoCell
+        cell.configure(with: photos[indexPath.item])
+        return cell
+    }
+
+    override func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        print("Selected photo at \(indexPath.item)")
+    }
+}
+
+class PhotoCell: UICollectionViewCell {
+
+    private let imageView = UIImageView()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        contentView.addSubview(imageView)
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            imageView.topAnchor.constraint(equalTo: contentView.topAnchor),
+            imageView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+            imageView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            imageView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor)
+        ])
+        imageView.contentMode = .scaleAspectFill
+        imageView.clipsToBounds = true
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func configure(with photo: Photo) {
+        if let data = photo.imageData, let uiImage = UIImage(data: data) {
+            imageView.image = uiImage
+        } else {
+            imageView.image = nil
+        }
+    }
+}
+
+
+
+/*struct PhotoGridCell: View {
     var photo: Photo
     var isSelected: Bool
 
@@ -430,7 +533,7 @@ struct PhotoGridCell: View {
         }
         .cornerRadius(8)
     }
-}
+}*/
 
 //
 

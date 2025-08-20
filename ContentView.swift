@@ -170,8 +170,8 @@ struct ContentView: View {
 
 // MARK: - SwiftUI MainView
 struct MainView: View {
-    @ObservedObject var photocontroller: PhotoController
-    @StateObject var viewModel = MainViewModel()
+    @ObservedObject var controller: PhotoController
+    @StateObject var viewModel = MainViewModel() // ← 追加
 
     var body: some View {
         NavigationView {
@@ -184,20 +184,17 @@ struct MainView: View {
                                     Section {
                                         let photosInMonth = viewModel.groupedByMonth[month] ?? []
                                         LazyVGrid(columns: viewModel.columns, spacing: 10) {
-                                            ForEach(photosInMonth.indices, id: \.self) { idx in
-                                                let photo = photosInMonth[idx]
+                                            ForEach(photosInMonth.indices, id: \.self) { indexInMonth in
+                                                let photo = photosInMonth[indexInMonth]
                                                 let globalIndex = viewModel.filteredPhotos.firstIndex(of: photo) ?? 0
                                                 let isSelected = viewModel.selectedPhotos.contains(globalIndex)
-                                                
+
                                                 PhotoGridCell(photo: photo, isSelected: isSelected)
                                                     .id(globalIndex)
                                                     .onTapGesture {
                                                         if !viewModel.selectedPhotos.isEmpty {
-                                                            if isSelected {
-                                                                viewModel.selectedPhotos.remove(globalIndex)
-                                                            } else {
-                                                                viewModel.selectedPhotos.insert(globalIndex)
-                                                            }
+                                                            if isSelected { viewModel.selectedPhotos.remove(globalIndex) }
+                                                            else { viewModel.selectedPhotos.insert(globalIndex) }
                                                         } else {
                                                             viewModel.selectedIndex = globalIndex
                                                         }
@@ -237,9 +234,9 @@ struct MainView: View {
                                                 DragGesture()
                                                     .onChanged { value in
                                                         viewModel.dragPosition = value.location.y - 75
-                                                        let idx = viewModel.scrollIndex(fromDrag: value.location.y, totalHeight: 150)
+                                                        let index = viewModel.scrollIndex(fromDrag: value.location.y, totalHeight: 150)
                                                         withAnimation(.linear(duration: 0.05)) {
-                                                            proxy.scrollTo(idx, anchor: .top)
+                                                            proxy.scrollTo(index, anchor: .top)
                                                         }
                                                     }
                                             )
@@ -249,12 +246,93 @@ struct MainView: View {
                             .frame(width: 40)
                             .padding(.trailing, 8)
                         }
+
+                        // フルスクリーンスライダー
+                        if let index = viewModel.selectedIndex {
+                            PhotoSliderView(
+                                fetchController: controller,
+                                selectedIndex: index,
+                                onClose: { viewModel.selectedIndex = nil }
+                            )
+                            .zIndex(1)
+                        }
+
+                        // フローティングボタン
+                        FloatingButtonPanel(
+                            selectedPhotos: $viewModel.selectedPhotos,
+                            showPicker: $viewModel.showPicker,
+                            showSearch: $viewModel.showSearch,
+                            showFolderSheet: $viewModel.showFolderSheet,
+                            controller: controller
+                        )
+                    }
+                    .onAppear {
+                        // controller の写真を viewModel にセット
+                        viewModel.allPhotos = controller.photos
+                        // filteredPhotos の最後のインデックスにスクロール
+                        if let lastIndex = viewModel.filteredPhotos.indices.last {
+                            proxy.scrollTo(lastIndex, anchor: .bottom)
+                        }
+                    }
+
+                    // 下部の Picker
+                    if viewModel.selectedIndex == nil {
+                        Picker("", selection: $viewModel.segmentSelection) {
+                            ForEach(0..<viewModel.segments.count, id: \.self) { i in
+                                Text(viewModel.segments[i])
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .padding()
+                        .background(.ultraThinMaterial)
+                        .onChange(of: viewModel.segmentSelection) { newValue in
+                            viewModel.selectSegment(newValue)
+                            let month = viewModel.segments[newValue]
+                            if let index = viewModel.monthStartIndex[month] {
+                                withAnimation { proxy.scrollTo(index, anchor: .top) }
+                            } else if month == "すべての写真" {
+                                proxy.scrollTo(0, anchor: .top)
+                            }
+                        }
+                    }
+                }
+
+                // 選択中なら Cancel ボタン
+                if !viewModel.selectedPhotos.isEmpty {
+                    HStack {
+                        Spacer()
+                        Button("cancel") {
+                            viewModel.selectedPhotos.removeAll()
+                        }
+                        .padding(.leading)
+                        Spacer()
                     }
                 }
             }
+            .navigationTitle("写真")
         }
-        .onAppear {
-            viewModel.allPhotos = photocontroller.photos
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $viewModel.showPicker) {
+            PhotoPicker { images, assets in
+                for (i, image) in images.enumerated() {
+                    let creationDate = (i < assets.count) ? assets[i].creationDate ?? Date() : Date()
+                    controller.addPhoto(image, creationDate: creationDate)
+                }
+                viewModel.allPhotos = controller.photos
+            }
+        }
+        .sheet(isPresented: $viewModel.showFolderSheet) {
+            FolderSheetView(
+                isPresented: $viewModel.showFolderSheet,
+                selectedPhotos: .constant([]),
+                photos: controller.photos
+            )
+        }
+        .fullScreenCover(isPresented: $viewModel.showSearch) {
+            SearchView(controller: controller, isPresented: $viewModel.showSearch)
+        }
+        .fullScreenCover(isPresented: $viewModel.showAlbum) {
+            FolderListView(controller: controller)
         }
     }
 }

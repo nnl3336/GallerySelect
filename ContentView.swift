@@ -250,7 +250,7 @@ struct MainView: View {
                                     let photo = filteredPhotos[index]
                                     let isSelected = selectedPhotos.contains(index)
                                     
-                                    PhotoGridCell(photo: photo, isSelected: isSelected)
+                                    PhotoGridCell(photo: photo, isSelected: isSelected, controller: controller)
                                         .id(index)
                                         .onTapGesture {
                                             if !selectedPhotos.isEmpty {
@@ -407,42 +407,26 @@ struct MainView: View {
 }
 
 struct PhotoGridCell: View {
-    var photo: Photo
-    var isSelected: Bool
-    @State private var thumbnail: UIImage?
+    let photo: Photo
+    let isSelected: Bool
+    @ObservedObject var controller: PhotoController
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            if let thumb = thumbnail {
-                Image(uiImage: thumb)
+            if let uiImage = controller.image(for: photo) {
+                Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFill()
-                    .frame(height: 100)
+                    .frame(width: 100, height: 100)
                     .clipped()
-                    .cornerRadius(8)
-                    .overlay(
-                        isSelected ? Color.blue.opacity(0.3).cornerRadius(8) : nil
-                    )
-                    .contentShape(Rectangle())
             } else {
-                Color.gray.frame(height: 100).cornerRadius(8)
+                Color.gray.frame(width: 100, height: 100)
             }
 
             if isSelected {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.white)
-                    .padding(5)
-            }
-        }
-        .onAppear {
-            if thumbnail == nil, let data = photo.imageData,
-               let uiImage = UIImage(data: data) {
-                DispatchQueue.global(qos: .userInitiated).async {
-                    let resized = uiImage.resize(to: CGSize(width: 150, height: 150))
-                    DispatchQueue.main.async {
-                        thumbnail = resized
-                    }
-                }
+                    .foregroundColor(.blue)
+                    .padding(4)
             }
         }
     }

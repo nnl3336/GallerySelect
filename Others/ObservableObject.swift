@@ -41,9 +41,16 @@ class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDel
             print("Fetch error: \(error)")
         }
         
-        fetchFolders() // ←追加
+        //fetchFolders() // ←追加
 
     }
+    
+    func image(for photo: Photo) -> UIImage? {
+           if let data = photo.imageData {
+               return UIImage(data: data)
+           }
+           return nil
+       }
     
     func fetchFolders() {
         let request: NSFetchRequest<Folder> = Folder.fetchRequest()

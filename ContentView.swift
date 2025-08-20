@@ -23,7 +23,7 @@ struct ContentView: View {
             Group {
                 switch currentScreen {
                 case .photos:
-                    MainView(photocontroller: photocontroller)
+                    MainView(controller: photocontroller, foldercontroller: foldercontroller)
                 case .albums:
                     FolderListView(photocontroller: photocontroller,
                                    foldercontroller: foldercontroller)
@@ -171,6 +171,7 @@ struct ContentView: View {
 // MARK: - SwiftUI MainView
 struct MainView: View {
     @ObservedObject var controller: PhotoController
+    @ObservedObject var foldercontroller: FolderController
 
     @State private var selectedIndex: Int? = nil
     @State private var selectedPhotos: Set<Int> = []
@@ -235,44 +236,7 @@ struct MainView: View {
             VStack {
                 ScrollViewReader { proxy in
                     ZStack(alignment: .trailing) {
-                        ScrollView {
-                            LazyVStack(pinnedViews: [.sectionHeaders]) {
-                                ForEach(groupedByMonth.keys.sorted(by: >), id: \.self) { month in
-                                    Section {
-                                        let photosInMonth = groupedByMonth[month] ?? []
-                                        LazyVGrid(columns: columns, spacing: 10) {
-                                            ForEach(photosInMonth.indices, id: \.self) { indexInMonth in
-                                                let photo = photosInMonth[indexInMonth]
-                                                let globalIndex = filteredPhotos.firstIndex(of: photo) ?? 0
-                                                let isSelected = selectedPhotos.contains(globalIndex)
-
-                                                PhotoGridCell(photo: photo, isSelected: isSelected)
-                                                    .id(globalIndex)
-                                                    .onTapGesture {
-                                                        if !selectedPhotos.isEmpty {
-                                                            if isSelected { selectedPhotos.remove(globalIndex) }
-                                                            else { selectedPhotos.insert(globalIndex) }
-                                                        } else {
-                                                            selectedIndex = globalIndex
-                                                        }
-                                                    }
-                                            }
-                                        }
-                                        .padding(.horizontal)
-                                    } header: {
-                                        HStack {
-                                            Text(month)
-                                                .font(.headline)
-                                                .padding(.leading)
-                                            Spacer()
-                                        }
-                                        .frame(maxWidth: .infinity)
-                                        .background(.thinMaterial)
-                                    }
-                                }
-                            }
-                            .padding(.top)
-                        }
+                        PhotoView(controller: controller)
 
                         if showFastScroll {
                             VStack {
@@ -317,8 +281,11 @@ struct MainView: View {
                             showPicker: $showPicker,
                             showSearch: $showSearch,
                             showFolderSheet: $showFolderSheet,
-                            controller: controller
+                            photocontroller: controller,       // ← PhotoController を渡す
+                            foldercontroller: foldercontroller // ← FolderController を渡す
                         )
+
+
                     }
                     .onAppear {
                         if let lastIndex = filteredPhotos.indices.last {
@@ -377,10 +344,54 @@ struct MainView: View {
             SearchView(controller: controller, isPresented: $showSearch)
         }
         .fullScreenCover(isPresented: $showAlbum) {
-            FolderListView(controller: controller)
+            FolderListView(photocontroller: controller, foldercontroller: foldercontroller)
         }
     }
 }
+
+struct PhotoView: UIViewRepresentable {
+    @ObservedObject var controller: PhotoController
+
+    func makeUIView(context: Context) -> UICollectionView {
+        let layout = UICollectionViewFlowLayout()
+        layout.itemSize = CGSize(width: 100, height: 100)
+        layout.minimumInteritemSpacing = 5
+        layout.minimumLineSpacing = 5
+
+        let collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
+        collectionView.backgroundColor = .white
+        collectionView.dataSource = context.coordinator
+        collectionView.register(UICollectionViewCell.self, forCellWithReuseIdentifier: "Cell")
+        return collectionView
+    }
+
+    func updateUIView(_ uiView: UICollectionView, context: Context) {
+        uiView.reloadData()
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(controller: controller)
+    }
+
+    class Coordinator: NSObject, UICollectionViewDataSource {
+        var controller: PhotoController
+
+        init(controller: PhotoController) {
+            self.controller = controller
+        }
+
+        func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+            return controller.photos.count
+        }
+
+        func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+            let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "Cell", for: indexPath)
+            cell.backgroundColor = .red
+            return cell
+        }
+    }
+}
+
 
 struct PhotoGridCell: View {
     var photo: Photo

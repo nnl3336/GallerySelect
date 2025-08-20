@@ -173,6 +173,8 @@ struct MainView: View {
     @ObservedObject var photocontroller: PhotoController
     @ObservedObject var foldercontroller: FolderController
 
+    @StateObject var selectionManager = PhotoSelectionManager()
+    
     @State private var selectedIndex: Int? = nil
     @State private var selectedPhotos: Set<Int> = []
     @State private var showPicker: Bool = false
@@ -251,7 +253,8 @@ struct MainView: View {
                                     .overlay(
                                         Circle()
                                             .fill(Color.blue)
-                                            .frame(width: 30, height: 30)                                             .offset(y: dragPosition)
+                                            .frame(width: 30, height: 30)
+                                            .offset(y: dragPosition)
                                             .gesture(
                                                 DragGesture()
                                                     .onChanged { value in
@@ -352,7 +355,6 @@ struct MainView: View {
 }
 
 // MARK: - PhotoView (UICollectionView wrapped)
-
 struct PhotoView: UIViewRepresentable {
     @ObservedObject var photocontroller: PhotoController
 
@@ -360,8 +362,13 @@ struct PhotoView: UIViewRepresentable {
         let layout = UICollectionViewFlowLayout()
         layout.minimumLineSpacing = 5
         layout.minimumInteritemSpacing = 5
-        layout.itemSize = CGSize(width: 100, height: 100) // 固定サイズ
         layout.scrollDirection = .vertical
+
+        // 3列で画面幅に収める
+        let numberOfColumns: CGFloat = 3
+        let totalSpacing = layout.minimumInteritemSpacing * (numberOfColumns - 1)
+        let width = (UIScreen.main.bounds.width - totalSpacing) / numberOfColumns
+        layout.itemSize = CGSize(width: width, height: width)
 
         let collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         collectionView.backgroundColor = .white
@@ -371,6 +378,8 @@ struct PhotoView: UIViewRepresentable {
         collectionView.register(PhotoCell.self, forCellWithReuseIdentifier: "PhotoCell")
         return collectionView
     }
+
+
 
     func updateUIView(_ uiView: UICollectionView, context: Context) {
         uiView.reloadData()
@@ -383,9 +392,22 @@ struct PhotoView: UIViewRepresentable {
     // MARK: - Coordinator
     class Coordinator: NSObject, UICollectionViewDataSource, UICollectionViewDelegate {
         var controller: PhotoController
+        var selectedPhotos: Set<UUID> = []   // ← ここで追加
 
         init(controller: PhotoController) {
             self.controller = controller
+        }
+        
+        func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+            let photo = controller.photos[indexPath.item]
+            guard let id = photo.id else { return }   // ← アンラップ
+            if selectedPhotos.contains(id) {
+                selectedPhotos.remove(id)
+                collectionView.deselectItem(at: indexPath, animated: true)
+            } else {
+                selectedPhotos.insert(id)
+            }
+            print("Selected photos: \(selectedPhotos)")
         }
 
         func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
@@ -398,15 +420,11 @@ struct PhotoView: UIViewRepresentable {
             cell.configure(with: photo)
             return cell
         }
-
-        func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-            print("Tapped photo at \(indexPath.item)")
-        }
     }
 }
 
 // MARK: - UICollectionViewCell
-class UICollectionPhotoCell: UICollectionViewCell {
+class PhotoCell: UICollectionViewCell {
     private let imageView = UIImageView()
 
     override init(frame: CGRect) {
@@ -473,36 +491,6 @@ class PhotoCollectionViewController: UICollectionViewController {
     }
 }
 
-class PhotoCell: UICollectionViewCell {
-
-    private let imageView = UIImageView()
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        contentView.addSubview(imageView)
-        imageView.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            imageView.topAnchor.constraint(equalTo: contentView.topAnchor),
-            imageView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
-            imageView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            imageView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor)
-        ])
-        imageView.contentMode = .scaleAspectFill
-        imageView.clipsToBounds = true
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    func configure(with photo: Photo) {
-        if let data = photo.imageData, let uiImage = UIImage(data: data) {
-            imageView.image = uiImage
-        } else {
-            imageView.image = nil
-        }
-    }
-}
 
 
 

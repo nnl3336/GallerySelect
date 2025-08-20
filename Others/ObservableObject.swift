@@ -8,6 +8,17 @@
 import SwiftUI
 import CoreData
 import Photos
+import Combine
+
+/*
+@EnvironmentObject var selectionManager: PhotoSelectionManager
+ */
+
+class PhotoSelectionManager: ObservableObject {
+    @Published var selectedPhotos: Set<Int> = []   // 複数選択用
+    @Published var selectedIndex: Int? = nil       // フルスクリーン表示用
+}
+
 
 //廃止
 /*class MainViewModel: ObservableObject {
@@ -87,6 +98,9 @@ import Photos
     }
 }*/
 
+/*
+@EnvironmentObject var folderController: FolderController
+ */
 
 // MARK: - FRCラッパークラス
 class FolderController: NSObject, ObservableObject, NSFetchedResultsControllerDelegate {
@@ -190,6 +204,10 @@ class FolderController: NSObject, ObservableObject, NSFetchedResultsControllerDe
         }
     }
 }
+
+/*
+@EnvironmentObject var photoController: PhotoController
+ */
 
 // MARK: - FRCラッパークラス
 class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDelegate {

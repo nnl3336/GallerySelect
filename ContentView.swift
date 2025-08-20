@@ -265,7 +265,6 @@ struct MainView: View {
     var body: some View {
         NavigationView {
             VStack {
-
                 // 写真グリッド + 右端スクロール
                 ScrollViewReader { proxy in
                     ZStack(alignment: .trailing) {
@@ -279,20 +278,49 @@ struct MainView: View {
                                                 let photo = photosInMonth[indexInMonth]
                                                 let globalIndex = filteredPhotos.firstIndex(of: photo) ?? 0
                                                 let isSelected = selectedPhotos.contains(globalIndex)
-                                                
-                                                PhotoGridCell(photo: photo, isSelected: isSelected)
-                                                    .id(globalIndex)
-                                                    .onTapGesture {
-                                                        if !selectedPhotos.isEmpty {
-                                                            if isSelected { selectedPhotos.remove(globalIndex) }
-                                                            else { selectedPhotos.insert(globalIndex) }
-                                                        } else {
-                                                            selectedIndex = globalIndex
+
+                                                if let data = photo.imageData, let uiImage = UIImage(data: data) {
+                                                    PhotoGridCell(photo: photo, isSelected: isSelected)
+                                                        .id(globalIndex)
+                                                        .onTapGesture {
+                                                            if !selectedPhotos.isEmpty {
+                                                                if isSelected {
+                                                                    selectedPhotos.remove(globalIndex)
+                                                                } else {
+                                                                    selectedPhotos.insert(globalIndex)
+                                                                }
+                                                            } else {
+                                                                selectedIndex = globalIndex
+                                                            }
                                                         }
-                                                    }
-                                                    .contextMenu {
-                                                        // 既存の contextMenu 処理
-                                                    }
+                                                        .overlay(isSelected ? Color.blue.opacity(0.3).cornerRadius(8) : nil)
+                                                        .contextMenu {
+                                                            Button(action: {
+                                                                if isSelected {
+                                                                    selectedPhotos.remove(globalIndex)
+                                                                } else {
+                                                                    selectedPhotos.insert(globalIndex)
+                                                                }
+                                                            }) {
+                                                                Text(isSelected ? "選択解除" : "選択")
+                                                                Image(systemName: isSelected ? "circle" : "checkmark.circle")
+                                                            }
+
+                                                            // uiImage はここで定義済みなので使える
+                                                            Button {
+                                                                controller.saveImageToCameraRoll(uiImage)
+                                                            } label: {
+                                                                Label("保存", systemImage: "square.and.arrow.down")
+                                                            }
+
+                                                            Button(action: {
+                                                                controller.deletePhoto(at: globalIndex)
+                                                            }) {
+                                                                Text("削除")
+                                                                Image(systemName: "trash")
+                                                            }
+                                                        }
+                                                }
                                             }
                                         }
                                         .padding(.horizontal)
@@ -310,7 +338,7 @@ struct MainView: View {
                             }
                             .padding(.top)
                         }
-
+                        
                         // 右端スクロールハンドル
                         if showFastScroll {
                             VStack {
@@ -345,7 +373,7 @@ struct MainView: View {
                             .transition(.opacity)
                             .animation(.easeInOut, value: showFastScroll)
                         }
-
+                        
                         // フルスクリーンスライダー
                         if let index = selectedIndex {
                             PhotoSliderView(
@@ -355,7 +383,7 @@ struct MainView: View {
                             )
                             .zIndex(1)
                         }
-
+                        
                         // フローティングボタン
                         FloatingButtonPanel(
                             selectedPhotos: $selectedPhotos,
@@ -366,11 +394,11 @@ struct MainView: View {
                         )
                     }
                     .onAppear {
-                            // filteredPhotos の最後のインデックスにスクロール
-                            if let lastIndex = filteredPhotos.indices.last {
-                                proxy.scrollTo(lastIndex, anchor: .bottom)
-                            }
+                        // filteredPhotos の最後のインデックスにスクロール
+                        if let lastIndex = filteredPhotos.indices.last {
+                            proxy.scrollTo(lastIndex, anchor: .bottom)
                         }
+                    }
                     
                     // 下部の Picker を固定表示
                     if selectedIndex == nil {
@@ -397,16 +425,16 @@ struct MainView: View {
                 
                 
                 // 選択中ならCancelボタンを表示
-                        if !selectedPhotos.isEmpty {
-                            HStack {
-                                Spacer()
-                                Button("cancel") {
-                                    selectedPhotos.removeAll()
-                                }
-                                .padding(.leading)
-                                Spacer()
-                            }
+                if !selectedPhotos.isEmpty {
+                    HStack {
+                        Spacer()
+                        Button("cancel") {
+                            selectedPhotos.removeAll()
                         }
+                        .padding(.leading)
+                        Spacer()
+                    }
+                }
             }
             .navigationTitle("写真")
         }
@@ -426,7 +454,7 @@ struct MainView: View {
                 photos: controller.photos
             )
         }
-
+        
         
         .fullScreenCover(isPresented: $showSearch) {
             SearchView(controller: controller, isPresented: $showSearch)

@@ -15,7 +15,7 @@ import Combine
  */
 
 class PhotoSelectionManager: ObservableObject {
-    @Published var selectedPhotos: Set<Int> = []   // 複数選択用
+    @Published var selectedPhotos: Set<UUID> = []   // 複数選択用
     @Published var selectedIndex: Int? = nil       // フルスクリーン表示用
 }
 

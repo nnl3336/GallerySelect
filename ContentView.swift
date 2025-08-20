@@ -171,7 +171,64 @@ struct ContentView: View {
 // MARK: - SwiftUI MainView
 struct MainView: View {
     @ObservedObject var controller: PhotoController
-    @StateObject var viewModel = MainViewModel() // ← 追加
+
+    @State private var selectedIndex: Int? = nil
+    @State private var selectedPhotos: Set<Int> = []
+    @State private var showPicker: Bool = false
+    @State private var showSearch: Bool = false
+    @State private var showFolderSheet: Bool = false
+    @State private var showAlbum: Bool = false
+    @State private var segmentSelection: Int = 2
+    @State private var showFastScroll: Bool = false
+    @State private var dragPosition: CGFloat = 0
+
+    let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
+    let segments = ["後ろの月", "前の月", "すべての写真"]
+
+    // MARK: - フィルタリング・グループ化
+    var filteredPhotos: [Photo] {
+        switch segmentSelection {
+        case 0: // 後ろの月
+            return controller.photos.filter { photo in
+                guard let date = photo.creationDate else { return false }
+                return Calendar.current.isDate(date, equalTo: Date().addingTimeInterval(30*24*60*60), toGranularity: .month)
+            }
+        case 1: // 前の月
+            return controller.photos.filter { photo in
+                guard let date = photo.creationDate else { return false }
+                return Calendar.current.isDate(date, equalTo: Date().addingTimeInterval(-30*24*60*60), toGranularity: .month)
+            }
+        default: // すべての写真
+            return controller.photos
+        }
+    }
+
+    var groupedByMonth: [String: [Photo]] {
+        Dictionary(grouping: filteredPhotos) { photo in
+            let date = photo.creationDate ?? Date()
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy/MM"
+            return formatter.string(from: date)
+        }
+    }
+
+    var monthStartIndex: [String: Int] {
+        var dict: [String: Int] = [:]
+        let sortedMonths = groupedByMonth.keys.sorted(by: >)
+        for month in sortedMonths {
+            if let firstPhoto = groupedByMonth[month]?.first,
+               let index = filteredPhotos.firstIndex(of: firstPhoto) {
+                dict[month] = index
+            }
+        }
+        return dict
+    }
+
+    func scrollIndex(fromDrag value: CGFloat, totalHeight: CGFloat) -> Int {
+        let y = min(max(value, 0), totalHeight)
+        let ratio = y / totalHeight
+        return Int(ratio * CGFloat(max(filteredPhotos.count-1, 0)))
+    }
 
     var body: some View {
         NavigationView {
@@ -180,23 +237,23 @@ struct MainView: View {
                     ZStack(alignment: .trailing) {
                         ScrollView {
                             LazyVStack(pinnedViews: [.sectionHeaders]) {
-                                ForEach(viewModel.groupedByMonth.keys.sorted(by: >), id: \.self) { month in
+                                ForEach(groupedByMonth.keys.sorted(by: >), id: \.self) { month in
                                     Section {
-                                        let photosInMonth = viewModel.groupedByMonth[month] ?? []
-                                        LazyVGrid(columns: viewModel.columns, spacing: 10) {
+                                        let photosInMonth = groupedByMonth[month] ?? []
+                                        LazyVGrid(columns: columns, spacing: 10) {
                                             ForEach(photosInMonth.indices, id: \.self) { indexInMonth in
                                                 let photo = photosInMonth[indexInMonth]
-                                                let globalIndex = viewModel.filteredPhotos.firstIndex(of: photo) ?? 0
-                                                let isSelected = viewModel.selectedPhotos.contains(globalIndex)
+                                                let globalIndex = filteredPhotos.firstIndex(of: photo) ?? 0
+                                                let isSelected = selectedPhotos.contains(globalIndex)
 
                                                 PhotoGridCell(photo: photo, isSelected: isSelected)
                                                     .id(globalIndex)
                                                     .onTapGesture {
-                                                        if !viewModel.selectedPhotos.isEmpty {
-                                                            if isSelected { viewModel.selectedPhotos.remove(globalIndex) }
-                                                            else { viewModel.selectedPhotos.insert(globalIndex) }
+                                                        if !selectedPhotos.isEmpty {
+                                                            if isSelected { selectedPhotos.remove(globalIndex) }
+                                                            else { selectedPhotos.insert(globalIndex) }
                                                         } else {
-                                                            viewModel.selectedIndex = globalIndex
+                                                            selectedIndex = globalIndex
                                                         }
                                                     }
                                             }
@@ -217,8 +274,7 @@ struct MainView: View {
                             .padding(.top)
                         }
 
-                        // 右端スクロールハンドル
-                        if viewModel.showFastScroll {
+                        if showFastScroll {
                             VStack {
                                 Spacer()
                                 Rectangle()
@@ -229,12 +285,12 @@ struct MainView: View {
                                         Circle()
                                             .fill(Color.blue)
                                             .frame(width: 30, height: 30)
-                                            .offset(y: viewModel.dragPosition)
+                                            .offset(y: dragPosition)
                                             .gesture(
                                                 DragGesture()
                                                     .onChanged { value in
-                                                        viewModel.dragPosition = value.location.y - 75
-                                                        let index = viewModel.scrollIndex(fromDrag: value.location.y, totalHeight: 150)
+                                                        dragPosition = value.location.y - 75
+                                                        let index = scrollIndex(fromDrag: value.location.y, totalHeight: 150)
                                                         withAnimation(.linear(duration: 0.05)) {
                                                             proxy.scrollTo(index, anchor: .top)
                                                         }
@@ -247,48 +303,41 @@ struct MainView: View {
                             .padding(.trailing, 8)
                         }
 
-                        // フルスクリーンスライダー
-                        if let index = viewModel.selectedIndex {
+                        if let index = selectedIndex {
                             PhotoSliderView(
                                 fetchController: controller,
                                 selectedIndex: index,
-                                onClose: { viewModel.selectedIndex = nil }
+                                onClose: { selectedIndex = nil }
                             )
                             .zIndex(1)
                         }
 
-                        // フローティングボタン
                         FloatingButtonPanel(
-                            selectedPhotos: $viewModel.selectedPhotos,
-                            showPicker: $viewModel.showPicker,
-                            showSearch: $viewModel.showSearch,
-                            showFolderSheet: $viewModel.showFolderSheet,
+                            selectedPhotos: $selectedPhotos,
+                            showPicker: $showPicker,
+                            showSearch: $showSearch,
+                            showFolderSheet: $showFolderSheet,
                             controller: controller
                         )
                     }
                     .onAppear {
-                        // controller の写真を viewModel にセット
-                        viewModel.allPhotos = controller.photos
-                        // filteredPhotos の最後のインデックスにスクロール
-                        if let lastIndex = viewModel.filteredPhotos.indices.last {
+                        if let lastIndex = filteredPhotos.indices.last {
                             proxy.scrollTo(lastIndex, anchor: .bottom)
                         }
                     }
 
-                    // 下部の Picker
-                    if viewModel.selectedIndex == nil {
-                        Picker("", selection: $viewModel.segmentSelection) {
-                            ForEach(0..<viewModel.segments.count, id: \.self) { i in
-                                Text(viewModel.segments[i])
+                    if selectedIndex == nil {
+                        Picker("", selection: $segmentSelection) {
+                            ForEach(0..<segments.count, id: \.self) { i in
+                                Text(segments[i])
                             }
                         }
                         .pickerStyle(.segmented)
                         .padding()
                         .background(.ultraThinMaterial)
-                        .onChange(of: viewModel.segmentSelection) { newValue in
-                            viewModel.selectSegment(newValue)
-                            let month = viewModel.segments[newValue]
-                            if let index = viewModel.monthStartIndex[month] {
+                        .onChange(of: segmentSelection) { newValue in
+                            let month = segments[newValue]
+                            if let index = monthStartIndex[month] {
                                 withAnimation { proxy.scrollTo(index, anchor: .top) }
                             } else if month == "すべての写真" {
                                 proxy.scrollTo(0, anchor: .top)
@@ -297,14 +346,11 @@ struct MainView: View {
                     }
                 }
 
-                // 選択中なら Cancel ボタン
-                if !viewModel.selectedPhotos.isEmpty {
+                if !selectedPhotos.isEmpty {
                     HStack {
                         Spacer()
-                        Button("cancel") {
-                            viewModel.selectedPhotos.removeAll()
-                        }
-                        .padding(.leading)
+                        Button("cancel") { selectedPhotos.removeAll() }
+                            .padding(.leading)
                         Spacer()
                     }
                 }
@@ -312,26 +358,25 @@ struct MainView: View {
             .navigationTitle("写真")
         }
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $viewModel.showPicker) {
+        .sheet(isPresented: $showPicker) {
             PhotoPicker { images, assets in
                 for (i, image) in images.enumerated() {
                     let creationDate = (i < assets.count) ? assets[i].creationDate ?? Date() : Date()
                     controller.addPhoto(image, creationDate: creationDate)
                 }
-                viewModel.allPhotos = controller.photos
             }
         }
-        .sheet(isPresented: $viewModel.showFolderSheet) {
+        .sheet(isPresented: $showFolderSheet) {
             FolderSheetView(
-                isPresented: $viewModel.showFolderSheet,
+                isPresented: $showFolderSheet,
                 selectedPhotos: .constant([]),
                 photos: controller.photos
             )
         }
-        .fullScreenCover(isPresented: $viewModel.showSearch) {
-            SearchView(controller: controller, isPresented: $viewModel.showSearch)
+        .fullScreenCover(isPresented: $showSearch) {
+            SearchView(controller: controller, isPresented: $showSearch)
         }
-        .fullScreenCover(isPresented: $viewModel.showAlbum) {
+        .fullScreenCover(isPresented: $showAlbum) {
             FolderListView(controller: controller)
         }
     }

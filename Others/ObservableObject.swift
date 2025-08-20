@@ -9,7 +9,8 @@ import SwiftUI
 import CoreData
 import Photos
 
-class MainViewModel: ObservableObject {
+//廃止
+/*class MainViewModel: ObservableObject {
     // MARK: - UI State
     @Published var selectedIndex: Int? = nil
     @Published var selectedPhotos: Set<Int> = []
@@ -84,7 +85,7 @@ class MainViewModel: ObservableObject {
         let ratio = y / totalHeight
         return Int(ratio * CGFloat(max(filteredPhotos.count-1, 0)))
     }
-}
+}*/
 
 
 // MARK: - FRCラッパークラス

@@ -251,8 +251,7 @@ struct MainView: View {
                                     .overlay(
                                         Circle()
                                             .fill(Color.blue)
-                                            .frame(width: 30, height: 30)
-                                            .offset(y: dragPosition)
+                                            .frame(width: 30, height: 30)                                             .offset(y: dragPosition)
                                             .gesture(
                                                 DragGesture()
                                                     .onChanged { value in

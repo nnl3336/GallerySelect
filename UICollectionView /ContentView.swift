@@ -242,9 +242,9 @@ struct MainView: View {
             VStack {
                 // 写真グリッド + 右端スクロール
                 ScrollViewReader { proxy in
-                    ZStack(alignment: .trailing) {
-                        MyViewControllerRepresentable(photos: filteredPhotos)
-
+                    ZStack(alignment: .bottomTrailing) { // bottomTrailing に変更
+                        MyViewControllerRepresentable(photos: filteredPhotos,
+                                                      selectedPhotos: $selectedPhotos)
                         // 右端スクロールハンドル
                         if showFastScroll {
                             VStack {
@@ -311,20 +311,19 @@ struct MainView: View {
                         .pickerStyle(.segmented)
                         .padding()
                     }
-                
-                // 選択中ならCancelボタンを表示
-                        if !selectedPhotos.isEmpty {
-                            HStack {
-                                Spacer()
-                                Button("cancel") {
-                                    selectedPhotos.removeAll()
-                                }
-                                .padding(.leading)
-                                Spacer()
-                            }
-                        }
             }
             .navigationTitle("写真")
+            .toolbar {
+                ToolbarItemGroup(placement: .bottomBar) {
+                    Spacer() // 左側に空白を入れて右寄せ
+                    if !selectedPhotos.isEmpty {
+                        Button("Cancel") {
+                            selectedPhotos.removeAll()
+                        }
+                    }
+                }
+            }
+
         }
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showPicker) {
@@ -353,152 +352,9 @@ struct MainView: View {
     }
 }
 
-// SwiftUI 用のラッパー
-struct MyViewControllerRepresentable: UIViewControllerRepresentable {
-    var photos: [Photo]
 
-    func makeUIViewController(context: Context) -> MyViewController {
-        let vc = MyViewController()
-        vc.photos = photos
-        return vc
-    }
 
-    func updateUIViewController(_ uiViewController: MyViewController, context: Context) {
-        uiViewController.photos = photos
-        uiViewController.collectionView.reloadData()
-    }
-}
 
-class MyViewController: UIViewController, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout {
-
-    var collectionView: UICollectionView!
-    var photos: [Photo] = []
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = .systemBackground
-
-        let layout = UICollectionViewFlowLayout()
-        layout.scrollDirection = .vertical
-        layout.minimumInteritemSpacing = 2
-        layout.minimumLineSpacing = 2
-
-        collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
-        collectionView.backgroundColor = .white
-        collectionView.dataSource = self
-        collectionView.delegate = self
-
-        // カスタムセルを登録
-        collectionView.register(PhotoCell.self, forCellWithReuseIdentifier: PhotoCell.reuseIdentifier)
-
-        collectionView.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(collectionView)
-
-        NSLayoutConstraint.activate([
-            collectionView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            collectionView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
-        ])
-    }
-
-    // MARK: - DataSource
-    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-        return photos.count
-    }
-
-    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
-        guard let cell = collectionView.dequeueReusableCell(withReuseIdentifier: PhotoCell.reuseIdentifier, for: indexPath) as? PhotoCell else {
-            return UICollectionViewCell()
-        }
-        let photo = photos[indexPath.item]
-        cell.configure(with: photo)
-        return cell
-    }
-
-    // MARK: - DelegateFlowLayout
-    func collectionView(_ collectionView: UICollectionView,
-                        layout collectionViewLayout: UICollectionViewLayout,
-                        sizeForItemAt indexPath: IndexPath) -> CGSize {
-        let width = (collectionView.bounds.width - 4) / 3  // 3列、隙間2px
-        return CGSize(width: width, height: width)
-    }
-}
-
-protocol PhotoCellDelegate: AnyObject {
-    func photoCellDidToggleSelection(_ cell: PhotoCell)
-    func photoCellDidSave(_ cell: PhotoCell)
-    func photoCellDidDelete(_ cell: PhotoCell)
-}
-
-class PhotoCell: UICollectionViewCell {
-    static let reuseIdentifier = "PhotoCell"
-    let imageView = UIImageView()
-    weak var delegate: PhotoCellDelegate?
-    var isSelectedPhoto: Bool = false
-    
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-
-        imageView.contentMode = .scaleAspectFill
-        imageView.clipsToBounds = true
-        imageView.translatesAutoresizingMaskIntoConstraints = false
-        contentView.addSubview(imageView)
-        NSLayoutConstraint.activate([
-            imageView.topAnchor.constraint(equalTo: contentView.topAnchor),
-            imageView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
-            imageView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            imageView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-        ])
-        
-        // 長押しメニュー
-        let interaction = UIContextMenuInteraction(delegate: self)
-        self.addInteraction(interaction)
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-    
-    
-    func configure(with photo: Photo) {
-        if let data = photo.imageData {
-            DispatchQueue.global(qos: .userInitiated).async {
-                let uiImage = UIImage(data: data)
-                DispatchQueue.main.async {
-                    self.imageView.image = uiImage
-                }
-            }
-        } else {
-            imageView.image = nil
-        }
-    }
-}
-
-// MARK: - Context Menu
-extension PhotoCell: UIContextMenuInteractionDelegate {
-    func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
-                                configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
-        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
-            // 選択 / 選択解除
-            let toggleSelection = UIAction(title: self.isSelectedPhoto ? "選択解除" : "選択") { _ in
-                self.delegate?.photoCellDidToggleSelection(self)
-            }
-            
-            // 保存
-            let saveAction = UIAction(title: "保存", image: UIImage(systemName: "square.and.arrow.down")) { _ in
-                self.delegate?.photoCellDidSave(self)
-            }
-            
-            // 削除
-            let deleteAction = UIAction(title: "削除", image: UIImage(systemName: "trash"), attributes: .destructive) { _ in
-                self.delegate?.photoCellDidDelete(self)
-            }
-            
-            return UIMenu(title: "", children: [toggleSelection, saveAction, deleteAction])
-        }
-    }
-}
 
 
 struct FloatingButtonPanel: View {

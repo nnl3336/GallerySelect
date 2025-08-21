@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		1869D0CE2E53443A002C028F /* FolderSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1869D0CD2E53443A002C028F /* FolderSheetView.swift */; };
 		188981272E4F301400D6539F /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 188981262E4F301400D6539F /* ContentView.swift */; };
+		189D47B92E56CDCD005FB6AF /* PhotoCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 189D47B82E56CDCD005FB6AF /* PhotoCell.swift */; };
+		189D47BD2E56CE71005FB6AF /* MyViewControllerRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 189D47BC2E56CE71005FB6AF /* MyViewControllerRepresentable.swift */; };
 		18A62A212E50544900AFC31A /* GallerySelect.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 18A62A1D2E50544900AFC31A /* GallerySelect.xcdatamodeld */; };
 		18A62A2E2E50552500AFC31A /* PhotoSliderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18A62A2D2E50552500AFC31A /* PhotoSliderView.swift */; };
 		18F54CA52E50C2A400D337E5 /* GallerySelectApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18F54CA12E50C2A400D337E5 /* GallerySelectApp.swift */; };
@@ -43,6 +45,8 @@
 		188981262E4F301400D6539F /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		188981322E4F301600D6539F /* GallerySelectTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GallerySelectTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1889813C2E4F301600D6539F /* GallerySelectUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GallerySelectUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		189D47B82E56CDCD005FB6AF /* PhotoCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoCell.swift; sourceTree = "<group>"; };
+		189D47BC2E56CE71005FB6AF /* MyViewControllerRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyViewControllerRepresentable.swift; sourceTree = "<group>"; };
 		18A62A202E50544900AFC31A /* GallerySelect.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = GallerySelect.xcdatamodel; sourceTree = "<group>"; };
 		18A62A2D2E50552500AFC31A /* PhotoSliderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoSliderView.swift; sourceTree = "<group>"; };
 		18F54CA12E50C2A400D337E5 /* GallerySelectApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GallerySelectApp.swift; sourceTree = "<group>"; };
@@ -101,7 +105,7 @@
 			isa = PBXGroup;
 			children = (
 				18F54CAF2E51F24D00D337E5 /* Others */,
-				188981262E4F301400D6539F /* ContentView.swift */,
+				189D47B52E56CD34005FB6AF /* UICollectionView  */,
 				18A62A2D2E50552500AFC31A /* PhotoSliderView.swift */,
 				18F54CAD2E51F1ED00D337E5 /* SearchView.swift */,
 				18F54CB22E52E12F00D337E5 /* AlbumView.swift */,
@@ -124,6 +128,16 @@
 				1889813C2E4F301600D6539F /* GallerySelectUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		189D47B52E56CD34005FB6AF /* UICollectionView  */ = {
+			isa = PBXGroup;
+			children = (
+				188981262E4F301400D6539F /* ContentView.swift */,
+				189D47B82E56CDCD005FB6AF /* PhotoCell.swift */,
+				189D47BC2E56CE71005FB6AF /* MyViewControllerRepresentable.swift */,
+			);
+			path = "UICollectionView ";
 			sourceTree = "<group>";
 		};
 		18F54CAF2E51F24D00D337E5 /* Others */ = {
@@ -294,8 +308,10 @@
 				18A62A212E50544900AFC31A /* GallerySelect.xcdatamodeld in Sources */,
 				18A62A2E2E50552500AFC31A /* PhotoSliderView.swift in Sources */,
 				18F54CA52E50C2A400D337E5 /* GallerySelectApp.swift in Sources */,
+				189D47B92E56CDCD005FB6AF /* PhotoCell.swift in Sources */,
 				18F54CB12E51F25900D337E5 /* ObservableObject.swift in Sources */,
 				18F54CAE2E51F1ED00D337E5 /* SearchView.swift in Sources */,
+				189D47BD2E56CE71005FB6AF /* MyViewControllerRepresentable.swift in Sources */,
 				18F54CB92E52E5E400D337E5 /* MainView.swift in Sources */,
 				18F54CB32E52E12F00D337E5 /* AlbumView.swift in Sources */,
 				18F54CB72E52E27700D337E5 /* Enum.swift in Sources */,

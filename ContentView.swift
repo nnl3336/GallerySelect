@@ -372,7 +372,7 @@ struct MyViewControllerRepresentable: UIViewControllerRepresentable {
 class MyViewController: UIViewController, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout {
 
     var collectionView: UICollectionView!
-    var photos: [Photo] = []   // ← SwiftUI から渡される
+    var photos: [Photo] = []
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -380,14 +380,16 @@ class MyViewController: UIViewController, UICollectionViewDataSource, UICollecti
 
         let layout = UICollectionViewFlowLayout()
         layout.scrollDirection = .vertical
-        layout.minimumInteritemSpacing = 10
-        layout.minimumLineSpacing = 10
+        layout.minimumInteritemSpacing = 2
+        layout.minimumLineSpacing = 2
 
         collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         collectionView.backgroundColor = .white
         collectionView.dataSource = self
         collectionView.delegate = self
-        collectionView.register(UICollectionViewCell.self, forCellWithReuseIdentifier: "cell")
+
+        // カスタムセルを登録
+        collectionView.register(PhotoCell.self, forCellWithReuseIdentifier: PhotoCell.reuseIdentifier)
 
         collectionView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(collectionView)
@@ -406,11 +408,11 @@ class MyViewController: UIViewController, UICollectionViewDataSource, UICollecti
     }
 
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
-        let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "cell", for: indexPath)
-
-        // 簡単に背景色だけ（カスタムセルにして imageView で表示も可）
-        cell.backgroundColor = .systemBlue
-
+        guard let cell = collectionView.dequeueReusableCell(withReuseIdentifier: PhotoCell.reuseIdentifier, for: indexPath) as? PhotoCell else {
+            return UICollectionViewCell()
+        }
+        let photo = photos[indexPath.item]
+        cell.configure(with: photo)
         return cell
     }
 
@@ -418,11 +420,46 @@ class MyViewController: UIViewController, UICollectionViewDataSource, UICollecti
     func collectionView(_ collectionView: UICollectionView,
                         layout collectionViewLayout: UICollectionViewLayout,
                         sizeForItemAt indexPath: IndexPath) -> CGSize {
-        let width = (collectionView.bounds.width - 30) / 3
+        let width = (collectionView.bounds.width - 4) / 3  // 3列、隙間2px
         return CGSize(width: width, height: width)
     }
 }
 
+class PhotoCell: UICollectionViewCell {
+    static let reuseIdentifier = "PhotoCell"
+
+    private let imageView: UIImageView = {
+        let iv = UIImageView()
+        iv.contentMode = .scaleAspectFill
+        iv.clipsToBounds = true
+        iv.translatesAutoresizingMaskIntoConstraints = false
+        return iv
+    }()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        contentView.addSubview(imageView)
+
+        NSLayoutConstraint.activate([
+            imageView.topAnchor.constraint(equalTo: contentView.topAnchor),
+            imageView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            imageView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            imageView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func configure(with photo: Photo) {
+        if let data = photo.imageData, let uiImage = UIImage(data: data) {
+            imageView.image = uiImage
+        } else {
+            imageView.image = nil
+        }
+    }
+}
 
 
 struct PhotoGridCell: View {

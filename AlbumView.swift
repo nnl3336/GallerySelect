@@ -100,14 +100,3 @@ extension Folder {
 }
 
 
-// 写真セルを別Viewに切り出し
-struct PhotoCell: View {
-    var photo: Photo
-    var cachedImage: UIImage
-    
-    var body: some View {
-        Image(uiImage: cachedImage)
-            .resizable()
-            .scaledToFill()
-    }
-}

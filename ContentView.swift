@@ -453,12 +453,18 @@ class PhotoCell: UICollectionViewCell {
     }
 
     func configure(with photo: Photo) {
-        if let data = photo.imageData, let uiImage = UIImage(data: data) {
-            imageView.image = uiImage
+        if let data = photo.imageData {
+            DispatchQueue.global(qos: .userInitiated).async {
+                let uiImage = UIImage(data: data)
+                DispatchQueue.main.async {
+                    self.imageView.image = uiImage
+                }
+            }
         } else {
             imageView.image = nil
         }
     }
+
 }
 
 
@@ -484,46 +490,6 @@ struct PhotoGridCell: View {
                     .foregroundColor(.blue)
                     .padding(4)
             }
-        }
-    }
-}
-
-//
-
-
-struct PhotoContextMenu: View {
-    var photo: Photo
-    var isSelected: Bool
-    var toggleSelection: (Bool) -> Void
-    var deleteAction: () -> Void
-
-    var body: some View {
-        VStack {
-            Button(action: { toggleSelection(!isSelected) }) {
-                Label(isSelected ? "選択解除" : "選択", systemImage: isSelected ? "circle" : "checkmark.circle")
-            }
-            Button { UIImageWriteToSavedPhotosAlbum(UIImage(data: photo.imageData ?? Data())!, nil, nil, nil) } label: {
-                Label("保存", systemImage: "square.and.arrow.down")
-            }
-            Button(action: deleteAction) {
-                Label("削除", systemImage: "trash")
-            }
-        }
-    }
-}
-
-extension Photo {
-    var thumbnail: UIImage? {
-        guard let data = imageData else { return nil }
-        return UIImage(data: data)?.resize(to: CGSize(width: 150, height: 150))
-    }
-}
-
-extension UIImage {
-    func resize(to size: CGSize) -> UIImage {
-        let renderer = UIGraphicsImageRenderer(size: size)
-        return renderer.image { _ in
-            self.draw(in: CGRect(origin: .zero, size: size))
         }
     }
 }
@@ -562,6 +528,80 @@ struct FloatingButtonPanel: View {
     }
 }
 
+//
+
+
+struct PhotoContextMenu: View {
+    var photo: Photo
+    var isSelected: Bool
+    var toggleSelection: (Bool) -> Void
+    var deleteAction: () -> Void
+
+    var body: some View {
+        VStack {
+            Button(action: { toggleSelection(!isSelected) }) {
+                Label(isSelected ? "選択解除" : "選択", systemImage: isSelected ? "circle" : "checkmark.circle")
+            }
+            Button { UIImageWriteToSavedPhotosAlbum(UIImage(data: photo.imageData ?? Data())!, nil, nil, nil) } label: {
+                Label("保存", systemImage: "square.and.arrow.down")
+            }
+            Button(action: deleteAction) {
+                Label("削除", systemImage: "trash")
+            }
+        }
+    }
+}
+
+extension UIImage {
+    /// 長辺を targetLength に合わせて縮小
+    func resizedMaintainingAspect(to targetLength: CGFloat) -> UIImage? {
+        let maxSide = max(size.width, size.height)
+        let scale = targetLength / maxSide
+        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
+
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        return renderer.image { _ in
+            self.draw(in: CGRect(origin: .zero, size: newSize))
+        }
+    }
+
+    /// サムネイル用JPEGデータ
+    func jpegThumbnailData(maxLength: CGFloat = 200, compression: CGFloat = 0.7) -> Data? {
+        return self.resizedMaintainingAspect(to: maxLength)?
+            .jpegData(compressionQuality: compression)
+    }
+}
+
+
+extension UIImage {
+    func resized(to targetSize: CGSize) -> UIImage? {
+        let renderer = UIGraphicsImageRenderer(size: targetSize)
+        return renderer.image { _ in
+            self.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+    }
+
+    func jpegData(resizedTo targetSize: CGSize, compression: CGFloat = 0.7) -> Data? {
+        return self.resized(to: targetSize)?.jpegData(compressionQuality: compression)
+    }
+}
+
+extension Photo {
+    var thumbnail: UIImage? {
+        guard let data = imageData else { return nil }
+        return UIImage(data: data)?.resize(to: CGSize(width: 150, height: 150))
+    }
+}
+
+extension UIImage {
+    func resize(to size: CGSize) -> UIImage {
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { _ in
+            self.draw(in: CGRect(origin: .zero, size: size))
+        }
+    }
+}
+
 extension View {
     func floatingStyle(color: Color) -> some View {
         self.font(.title)
@@ -576,9 +616,6 @@ extension View {
 
 
 //
-
-
-
 
 
 // MARK: - PhotoPicker
@@ -640,11 +677,16 @@ struct PhotoPicker: UIViewControllerRepresentable {
         func didPickPhotos(images: [UIImage], assets: [PHAsset]) {
             for (index, image) in images.enumerated() {
                 let asset = assets.indices.contains(index) ? assets[index] : nil
-                let captureDate = asset?.creationDate ?? Date()  // 撮影日がなければ現在日付で代用
+                let captureDate = asset?.creationDate ?? Date()
 
-                // Core Data へ保存
                 let newPhoto = Photo(context: viewContext)
+                
+                // フル解像度
                 newPhoto.imageData = image.jpegData(compressionQuality: 0.9)
+                
+                // サムネイル（縦横比維持・長辺200）
+                newPhoto.thumbnailData = image.jpegThumbnailData(maxLength: 200)
+
                 newPhoto.currentDate = captureDate
             }
 

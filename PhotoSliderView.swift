@@ -8,24 +8,8 @@
 import SwiftUI
 import Combine
 
-class PhotoSliderViewModel: ObservableObject {
-    @Published var localNotes: [Int: String] = [:]
-    @Published var localLikes: [Int: Bool] = [:]
-    
-    private(set) var imageCache: [Int: UIImage] = [:]
-    
-    func cachedImage(for index: Int, photos: [Photo]) -> UIImage {
-        if let img = imageCache[index] { return img }
-        if let data = photos[index].imageData, let img = UIImage(data: data) {
-            imageCache[index] = img
-            return img
-        }
-        return UIImage()
-    }
-}
-
 struct PhotoSliderView: View {
-    @ObservedObject var fetchController: PhotoController
+    var photos: [Photo]           // <- 外部から渡す
     @State var selectedIndex: Int
     var onClose: () -> Void
 
@@ -38,9 +22,9 @@ struct PhotoSliderView: View {
             Color.black.opacity(0.8).ignoresSafeArea()
             
             TabView(selection: $selectedIndex) {
-                ForEach(fetchController.photos.indices, id: \.self) { index in
+                ForEach(photos.indices, id: \.self) { index in
                     GeometryReader { geo in
-                        Image(uiImage: vm.cachedImage(for: index, photos: fetchController.photos))
+                        Image(uiImage: vm.cachedImage(for: index, photos: photos))
                             .resizable()
                             .scaledToFit()
                             .frame(width: geo.size.width, height: geo.size.height)
@@ -74,12 +58,10 @@ struct PhotoSliderView: View {
                 }
                 .onEnded { value in
                     if abs(value.translation.height) > 150 {
-                        // スワイプ量が大きい場合は閉じる
                         withAnimation(.spring()) {
                             onClose()
                         }
                     } else {
-                        // 元に戻す
                         withAnimation(.spring()) {
                             dragOffset = .zero
                         }
@@ -89,10 +71,12 @@ struct PhotoSliderView: View {
     }
 
     private func scaleForDrag() -> CGFloat {
-        // 下方向に大きくスワイプしたら縮小
         let maxOffset: CGFloat = 500
         let offsetY = min(abs(dragOffset.height), maxOffset)
-        let scale = 1 - (offsetY / maxOffset) * 0.5 // 最大で0.5まで縮小
+        let scale = 1 - (offsetY / maxOffset) * 0.5
         return max(scale, 0.5)
     }
 }
+
+//
+

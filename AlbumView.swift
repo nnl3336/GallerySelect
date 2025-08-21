@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct FolderListView: View {
-    @ObservedObject var controller: PhotoController
+    @ObservedObject var folderController: FolderController
     @State private var selectedFolder: Folder? = nil
 
     let columns = [
@@ -20,8 +20,8 @@ struct FolderListView: View {
         NavigationView {
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 10) {
-                    ForEach(controller.folders, id: \.self) { folder in
-                        NavigationLink(destination: AlbumView(folder: folder, controller: controller)) {
+                    ForEach(folderController.folders, id: \.self) { folder in
+                        NavigationLink(destination: AlbumView(folder: folder, folderController: folderController)) {
                             ZStack {
                                 Color.gray.opacity(0.3)
                                     .cornerRadius(8)
@@ -40,11 +40,9 @@ struct FolderListView: View {
     }
 }
 
-
-// MARK: - AlbumView（仮）
 struct AlbumView: View {
     var folder: Folder
-    @ObservedObject var controller: PhotoController
+    @ObservedObject var folderController: FolderController
     @State private var selectedIndex: Int? = nil
 
     let columns = [
@@ -77,10 +75,9 @@ struct AlbumView: View {
             }
             .navigationTitle(folder.name ?? "フォルダ")
 
-            // スライダー表示
             if let index = selectedIndex {
                 PhotoSliderView(
-                    fetchController: controller,
+                    photos: folder.photosArray,   // ← フォルダ内の写真配列
                     selectedIndex: index,
                     onClose: { selectedIndex = nil }
                 )
@@ -89,6 +86,7 @@ struct AlbumView: View {
         }
     }
 }
+
 
 extension Folder {
     // NSSet を配列に変換して、作成日順でソート

@@ -9,28 +9,87 @@ import SwiftUI
 import CoreData
 import Photos
 
+class PhotoSliderViewModel: ObservableObject {
+    @Published var localNotes: [Int: String] = [:]
+    @Published var localLikes: [Int: Bool] = [:]
+    
+    private(set) var imageCache: [Int: UIImage] = [:]
+    
+    func cachedImage(for index: Int, photos: [Photo]) -> UIImage {
+        if let img = imageCache[index] { return img }
+        if let data = photos[index].imageData, let img = UIImage(data: data) {
+            imageCache[index] = img
+            return img
+        }
+        return UIImage()
+    }
+}
+
+// MARK: - FolderController
+class FolderController: NSObject, ObservableObject {
+    @Published var folders: [Folder] = []
+
+    private let context: NSManagedObjectContext
+
+    init(context: NSManagedObjectContext) {
+        self.context = context
+        super.init()
+        fetchFolders()
+    }
+
+    func fetchFolders() {
+        let request: NSFetchRequest<Folder> = Folder.fetchRequest()
+        request.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
+        do {
+            folders = try context.fetch(request)
+        } catch {
+            print("Folder fetch error: \(error)")
+        }
+    }
+
+    func createFolder(with selectedPhotos: [Photo], name: String) {
+        let newFolder = Folder(context: context)
+        newFolder.name = name
+        newFolder.addToPhotos(NSSet(array: selectedPhotos))
+        
+        do {
+            try context.save()
+            fetchFolders() // 更新
+        } catch {
+            print("Folder save error: \(error)")
+        }
+    }
+
+    func deleteFolder(_ folder: Folder) {
+        context.delete(folder)
+        do {
+            try context.save()
+            fetchFolders()
+        } catch {
+            print("Failed to delete folder: \(error)")
+        }
+    }
+}
 // MARK: - FRCラッパークラス
 class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDelegate {
     @Published var photos: [Photo] = []
-    @Published var folders: [Folder] = []
-    
-    /*private*/ let context: NSManagedObjectContext
+
+    private let context: NSManagedObjectContext
     private let frc: NSFetchedResultsController<Photo>
     
+    //***
+
     init(context: NSManagedObjectContext) {
         self.context = context
         
         let fetchRequest: NSFetchRequest<Photo> = Photo.fetchRequest()
         fetchRequest.sortDescriptors = [NSSortDescriptor(keyPath: \Photo.creationDate, ascending: true)]
-        fetchRequest.fetchBatchSize = 20   // ← ここ
+        fetchRequest.fetchBatchSize = 20
         
-        frc = NSFetchedResultsController(
-            fetchRequest: fetchRequest,
-            managedObjectContext: context,
-            sectionNameKeyPath: nil,
-            cacheName: nil
-        )
-        
+        frc = NSFetchedResultsController(fetchRequest: fetchRequest,
+                                         managedObjectContext: context,
+                                         sectionNameKeyPath: nil,
+                                         cacheName: nil)
         super.init()
         frc.delegate = self
         
@@ -40,50 +99,27 @@ class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDel
         } catch {
             print("Fetch error: \(error)")
         }
-        
-        //fetchFolders() // ←追加
-
     }
     
-    func image(for photo: Photo) -> UIImage? {
-           if let data = photo.imageData {
-               return UIImage(data: data)
-           }
-           return nil
-       }
+    //***
     
-    func fetchFolders() {
-        let request: NSFetchRequest<Folder> = Folder.fetchRequest()
-        request.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
-        
-        do {
-            folders = try context.fetch(request)
-        } catch {
-            print("Folder fetch error: \(error)")
-        }
-    }
+    // フィルタ適用
+        func applyFilter(keyword: String, likedOnly: Bool) {
+            var predicates: [NSPredicate] = []
 
-    
-    // フォルダ作成メソッド
-    func createFolder(with selectedIndices: Set<Int>, name: String) {
-        let newFolder = Folder(context: context)
-        newFolder.name = name
-        
-        let selectedPhotos = selectedIndices.compactMap { index in
-            photos.indices.contains(index) ? photos[index] : nil
-        }
-        newFolder.addToPhotos(NSSet(array: selectedPhotos))
-        
-        do {
-            try context.save()
-            fetchFolders() // ←ここで folders を更新
-        } catch {
-            print("フォルダ保存エラー: \(error)")
-        }
-    }
+            if !keyword.isEmpty {
+                predicates.append(NSPredicate(format: "note CONTAINS[cd] %@", keyword))
+            }
+            if likedOnly {
+                predicates.append(NSPredicate(format: "isLiked == true"))
+            }
 
-    
-    func fetchPhotos(predicate: NSPredicate? = nil) {
+            let compound = predicates.isEmpty ? nil : NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
+            fetchPhotos(predicate: compound)
+        }
+
+        // fetchPhotosもちゃんと public/internal である必要あり
+        func fetchPhotos(predicate: NSPredicate? = nil) {
             let request: NSFetchRequest<Photo> = Photo.fetchRequest()
             request.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
             request.predicate = predicate
@@ -94,38 +130,7 @@ class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDel
                 print("Fetch error: \(error)")
             }
         }
-    
-    func applyFilter(keyword: String, likedOnly: Bool) {
-        var predicates: [NSPredicate] = []
 
-        if !keyword.isEmpty {
-            predicates.append(NSPredicate(format: "note CONTAINS[cd] %@", keyword))
-        }
-        if likedOnly {
-            predicates.append(NSPredicate(format: "isLiked == true"))
-        }
-
-        let compound = predicates.isEmpty ? nil : NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
-        fetchPhotos(predicate: compound)
-    }
-    
-    func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
-        guard let updatedPhotos = controller.fetchedObjects as? [Photo] else { return }
-        DispatchQueue.main.async {
-            self.photos = updatedPhotos
-        }
-    }
-    
-    func deletePhoto(at index: Int) {
-        let photo = photos[index]
-        context.delete(photo)
-        do {
-            try context.save()
-        } catch {
-            print(error)
-        }
-    }
-    
     func addPhoto(_ image: UIImage, creationDate: Date = Date()) {
         let newPhoto = Photo(context: context)
         newPhoto.id = UUID()
@@ -134,17 +139,27 @@ class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDel
         
         do {
             try context.save()
+            photos.append(newPhoto)
         } catch {
             print(error)
         }
     }
-    
-    func saveImageToCameraRoll(_ image: UIImage) {
-        PHPhotoLibrary.requestAuthorization { status in
-            guard status == .authorized || status == .limited else { return }
-            PHPhotoLibrary.shared().performChanges({
-                PHAssetChangeRequest.creationRequestForAsset(from: image)
-            })
+
+    func deletePhoto(at index: Int) {
+        let photo = photos[index]
+        context.delete(photo)
+        do {
+            try context.save()
+            photos.remove(at: index)
+        } catch {
+            print(error)
+        }
+    }
+
+    func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
+        guard let updatedPhotos = controller.fetchedObjects as? [Photo] else { return }
+        DispatchQueue.main.async {
+            self.photos = updatedPhotos
         }
     }
 }

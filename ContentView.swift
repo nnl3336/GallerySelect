@@ -240,63 +240,10 @@ struct MainView: View {
     var body: some View {
         NavigationView {
             VStack {
-
                 // 写真グリッド + 右端スクロール
                 ScrollViewReader { proxy in
                     ZStack(alignment: .trailing) {
-                        ScrollView {
-                            LazyVGrid(columns: columns, spacing: 10) {
-                                ForEach(filteredPhotos.indices, id: \.self) { index in
-                                    let photo = filteredPhotos[index]
-                                    let isSelected = selectedPhotos.contains(index)
-                                    
-                                    PhotoGridCell(photo: photo, isSelected: isSelected, controller: controller)
-                                        .id(index)
-                                        .onTapGesture {
-                                            if !selectedPhotos.isEmpty {
-                                                if isSelected {
-                                                    selectedPhotos.remove(index)
-                                                } else {
-                                                    selectedPhotos.insert(index)
-                                                }
-                                            } else {
-                                                selectedIndex = index
-                                            }
-                                        }
-                                        .contextMenu {
-                                            Button(isSelected ? "選択解除" : "選択") {
-                                                if isSelected { selectedPhotos.remove(index) }
-                                                else { selectedPhotos.insert(index) }
-                                            }
-
-                                            if let uiImage = photo.thumbnail {
-                                                Button {
-                                                    controller.saveImageToCameraRoll(uiImage)
-                                                } label: {
-                                                    Label("保存", systemImage: "square.and.arrow.down")
-                                                }
-                                            }
-
-                                            Button {
-                                                controller.deletePhoto(at: index)
-                                            } label: {
-                                                Label("削除", systemImage: "trash")
-                                            }
-                                        }
-                                }
-                            }
-                            .padding()
-                            .gesture(DragGesture()
-                                        .onChanged { _ in
-                                            showFastScroll = true
-                                        }
-                                        .onEnded { _ in
-                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                                                showFastScroll = false
-                                            }
-                                        }
-                            )
-                        }
+                        MyViewControllerRepresentable(photos: filteredPhotos)
 
                         // 右端スクロールハンドル
                         if showFastScroll {
@@ -405,6 +352,78 @@ struct MainView: View {
         }
     }
 }
+
+// SwiftUI 用のラッパー
+struct MyViewControllerRepresentable: UIViewControllerRepresentable {
+    var photos: [Photo]
+
+    func makeUIViewController(context: Context) -> MyViewController {
+        let vc = MyViewController()
+        vc.photos = photos
+        return vc
+    }
+
+    func updateUIViewController(_ uiViewController: MyViewController, context: Context) {
+        uiViewController.photos = photos
+        uiViewController.collectionView.reloadData()
+    }
+}
+
+class MyViewController: UIViewController, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout {
+
+    var collectionView: UICollectionView!
+    var photos: [Photo] = []   // ← SwiftUI から渡される
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .systemBackground
+
+        let layout = UICollectionViewFlowLayout()
+        layout.scrollDirection = .vertical
+        layout.minimumInteritemSpacing = 10
+        layout.minimumLineSpacing = 10
+
+        collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
+        collectionView.backgroundColor = .white
+        collectionView.dataSource = self
+        collectionView.delegate = self
+        collectionView.register(UICollectionViewCell.self, forCellWithReuseIdentifier: "cell")
+
+        collectionView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(collectionView)
+
+        NSLayoutConstraint.activate([
+            collectionView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            collectionView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+    }
+
+    // MARK: - DataSource
+    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+        return photos.count
+    }
+
+    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+        let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "cell", for: indexPath)
+
+        // 簡単に背景色だけ（カスタムセルにして imageView で表示も可）
+        cell.backgroundColor = .systemBlue
+
+        return cell
+    }
+
+    // MARK: - DelegateFlowLayout
+    func collectionView(_ collectionView: UICollectionView,
+                        layout collectionViewLayout: UICollectionViewLayout,
+                        sizeForItemAt indexPath: IndexPath) -> CGSize {
+        let width = (collectionView.bounds.width - 30) / 3
+        return CGSize(width: width, height: width)
+    }
+}
+
+
 
 struct PhotoGridCell: View {
     let photo: Photo

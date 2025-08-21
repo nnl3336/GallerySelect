@@ -425,33 +425,42 @@ class MyViewController: UIViewController, UICollectionViewDataSource, UICollecti
     }
 }
 
+protocol PhotoCellDelegate: AnyObject {
+    func photoCellDidToggleSelection(_ cell: PhotoCell)
+    func photoCellDidSave(_ cell: PhotoCell)
+    func photoCellDidDelete(_ cell: PhotoCell)
+}
+
 class PhotoCell: UICollectionViewCell {
     static let reuseIdentifier = "PhotoCell"
-
-    private let imageView: UIImageView = {
-        let iv = UIImageView()
-        iv.contentMode = .scaleAspectFill
-        iv.clipsToBounds = true
-        iv.translatesAutoresizingMaskIntoConstraints = false
-        return iv
-    }()
-
+    let imageView = UIImageView()
+    weak var delegate: PhotoCellDelegate?
+    var isSelectedPhoto: Bool = false
+    
     override init(frame: CGRect) {
         super.init(frame: frame)
-        contentView.addSubview(imageView)
 
+        imageView.contentMode = .scaleAspectFill
+        imageView.clipsToBounds = true
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(imageView)
         NSLayoutConstraint.activate([
             imageView.topAnchor.constraint(equalTo: contentView.topAnchor),
+            imageView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
             imageView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             imageView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            imageView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
         ])
+        
+        // 長押しメニュー
+        let interaction = UIContextMenuInteraction(delegate: self)
+        self.addInteraction(interaction)
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-
+    
+    
     func configure(with photo: Photo) {
         if let data = photo.imageData {
             DispatchQueue.global(qos: .userInitiated).async {
@@ -464,32 +473,29 @@ class PhotoCell: UICollectionViewCell {
             imageView.image = nil
         }
     }
-
 }
 
-
-struct PhotoGridCell: View {
-    let photo: Photo
-    let isSelected: Bool
-    @ObservedObject var controller: PhotoController
-
-    var body: some View {
-        ZStack(alignment: .topTrailing) {
-            if let uiImage = controller.image(for: photo) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 100, height: 100)
-                    .clipped()
-            } else {
-                Color.gray.frame(width: 100, height: 100)
+// MARK: - Context Menu
+extension PhotoCell: UIContextMenuInteractionDelegate {
+    func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
+                                configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
+        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
+            // 選択 / 選択解除
+            let toggleSelection = UIAction(title: self.isSelectedPhoto ? "選択解除" : "選択") { _ in
+                self.delegate?.photoCellDidToggleSelection(self)
             }
-
-            if isSelected {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.blue)
-                    .padding(4)
+            
+            // 保存
+            let saveAction = UIAction(title: "保存", image: UIImage(systemName: "square.and.arrow.down")) { _ in
+                self.delegate?.photoCellDidSave(self)
             }
+            
+            // 削除
+            let deleteAction = UIAction(title: "削除", image: UIImage(systemName: "trash"), attributes: .destructive) { _ in
+                self.delegate?.photoCellDidDelete(self)
+            }
+            
+            return UIMenu(title: "", children: [toggleSelection, saveAction, deleteAction])
         }
     }
 }

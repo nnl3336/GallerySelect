@@ -208,6 +208,8 @@ struct MainView: View {
     var body: some View {
         NavigationView {
             VStack {
+                Text("写真の数: \(photos.count)")
+
                 ScrollViewReader { proxy in
                     ZStack(alignment: .trailing) {
                         ScrollView {

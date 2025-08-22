@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1866FAB22E58420D00607F84 /* Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1866FAB12E58420D00607F84 /* Persistence.swift */; };
 		1867E7802E581C9400AB3476 /* SwiftUIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1867E77F2E581C9400AB3476 /* SwiftUIView.swift */; };
 		1869D0CE2E53443A002C028F /* FolderSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1869D0CD2E53443A002C028F /* FolderSheetView.swift */; };
 		188981272E4F301400D6539F /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 188981262E4F301400D6539F /* ContentView.swift */; };
@@ -41,6 +42,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		1866FAB12E58420D00607F84 /* Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence.swift; sourceTree = "<group>"; };
 		1867E77F2E581C9400AB3476 /* SwiftUIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftUIView.swift; sourceTree = "<group>"; };
 		1869D0CD2E53443A002C028F /* FolderSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderSheetView.swift; sourceTree = "<group>"; };
 		1889811C2E4F301400D6539F /* GallerySelect.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GallerySelect.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -111,13 +113,14 @@
 				18A62A2D2E50552500AFC31A /* PhotoSliderView.swift */,
 				18F54CAD2E51F1ED00D337E5 /* SearchView.swift */,
 				18F54CB22E52E12F00D337E5 /* AlbumView.swift */,
-				18F54CA12E50C2A400D337E5 /* GallerySelectApp.swift */,
 				1869D0CD2E53443A002C028F /* FolderSheetView.swift */,
-				18A62A1D2E50544900AFC31A /* GallerySelect.xcdatamodeld */,
 				18F54CBA2E52E69400D337E5 /* - */,
 				1889811E2E4F301400D6539F /* GallerySelect */,
 				188981352E4F301600D6539F /* GallerySelectTests */,
 				1889813F2E4F301600D6539F /* GallerySelectUITests */,
+				18F54CA12E50C2A400D337E5 /* GallerySelectApp.swift */,
+				1866FAB12E58420D00607F84 /* Persistence.swift */,
+				18A62A1D2E50544900AFC31A /* GallerySelect.xcdatamodeld */,
 				1889811D2E4F301400D6539F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -314,6 +317,7 @@
 				189D47B92E56CDCD005FB6AF /* PhotoCell.swift in Sources */,
 				18F54CB12E51F25900D337E5 /* ObservableObject.swift in Sources */,
 				18F54CAE2E51F1ED00D337E5 /* SearchView.swift in Sources */,
+				1866FAB22E58420D00607F84 /* Persistence.swift in Sources */,
 				189D47BD2E56CE71005FB6AF /* MyViewControllerRepresentable.swift in Sources */,
 				18F54CB92E52E5E400D337E5 /* MainView.swift in Sources */,
 				18F54CB32E52E12F00D337E5 /* AlbumView.swift in Sources */,

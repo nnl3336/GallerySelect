@@ -84,6 +84,18 @@ struct MainView: View {
                                             selectedIndex = index
                                         }
                                     }
+                                    .contextMenu {
+                                        Button(isSelected ? "選択解除" : "選択") {
+                                            if isSelected { selectedPhotos.remove(index) }
+                                            else { selectedPhotos.insert(index) }
+                                        }
+                                        
+                                        Button {
+                                            photoController.deletePhoto(at: index)
+                                        } label: {
+                                            Label("削除", systemImage: "trash")
+                                        }
+                                    }
                                 }
                             }
                             .padding()

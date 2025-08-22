@@ -7,9 +7,10 @@
 
 import SwiftUI
 
-// MARK: - SwiftUI MainView
+// MARK: - MainView
 struct MainView: View {
-    @ObservedObject var controller: PhotoController
+    @ObservedObject var photoController: PhotoController
+    @ObservedObject var folderController: FolderController
     @State private var selectedIndex: Int? = nil
     @State private var selectedPhotos = Set<Int>()
     @State private var showPicker = false
@@ -26,19 +27,19 @@ struct MainView: View {
     var filteredPhotos: [Photo] {
         switch segmentSelection {
         case 0: // 後ろの月
-            return controller.photos.filter { photo in
+            return photoController.photos.filter { photo in
                 guard let date = photo.creationDate else { return false }
                 return Calendar.current.isDate(date, equalTo: Date().addingTimeInterval(30*24*60*60), toGranularity: .month)
             }
         case 1: // 前の月
-            return controller.photos.filter { photo in
+            return photoController.photos.filter { photo in
                 guard let date = photo.creationDate else { return false }
                 return Calendar.current.isDate(date, equalTo: Date().addingTimeInterval(-30*24*60*60), toGranularity: .month)
             }
         case 2: // すべての写真
-            return controller.photos
+            return photoController.photos
         default:
-            return controller.photos
+            return photoController.photos
         }
     }
 
@@ -46,7 +47,8 @@ struct MainView: View {
         NavigationView {
             VStack {
                 PhotoGrid(
-                    controller: controller,
+                    photoController: photoController,
+                    folderController: folderController,
                     selectedIndex: $selectedIndex,
                     selectedPhotos: $selectedPhotos,
                     showFastScroll: $showFastScroll,
@@ -76,13 +78,37 @@ struct MainView: View {
             }
             .navigationTitle("写真")
         }
+        .sheet(isPresented: $showPicker) {
+            PhotoPicker { images, assets in
+                for (i, image) in images.enumerated() {
+                    let creationDate = (i < assets.count) ? assets[i].creationDate ?? Date() : Date()
+                    photoController.addPhoto(image, creationDate: creationDate)
+                }
+            }
+        }
+        .sheet(isPresented: $showFolderSheet) {
+            FloatingButtonPanel(
+                selectedPhotos: $selectedPhotos,
+                showPicker: $showPicker,
+                showSearch: $showSearch,
+                showFolderSheet: $showFolderSheet,
+                controller: photoController
+            )
+        }
+        .fullScreenCover(isPresented: $showSearch) {
+            SearchView(controller: photoController, isPresented: $showSearch)
+        }
+        .fullScreenCover(isPresented: $showAlbum) {
+            FolderListView(folderController: folderController)
+        }
     }
 }
 
+// MARK: - FastScrollBar
 struct FastScrollBar: View {
     @Binding var dragPosition: CGFloat
     let filteredPhotosCount: Int
-    let proxy: ScrollViewProxy   // ← ここは直接型として指定
+    let proxy: ScrollViewProxy
 
     var body: some View {
         VStack {
@@ -119,8 +145,10 @@ struct FastScrollBar: View {
     }
 }
 
+// MARK: - PhotoGrid
 struct PhotoGrid: View {
-    @ObservedObject var controller: PhotoController
+    @ObservedObject var photoController: PhotoController
+    @ObservedObject var folderController: FolderController
     @Binding var selectedIndex: Int?
     @Binding var selectedPhotos: Set<Int>
     @Binding var showFastScroll: Bool
@@ -166,14 +194,14 @@ struct PhotoGrid: View {
 
                                     if let uiImage = photo.thumbnail {
                                         Button {
-                                            controller.saveImageToCameraRoll(uiImage)
+                                            photoController.saveImageToCameraRoll(uiImage)
                                         } label: {
                                             Label("保存", systemImage: "square.and.arrow.down")
                                         }
                                     }
 
                                     Button {
-                                        controller.deletePhoto(at: index)
+                                        photoController.deletePhoto(at: index)
                                     } label: {
                                         Label("削除", systemImage: "trash")
                                     }
@@ -191,7 +219,6 @@ struct PhotoGrid: View {
                     )
                 }
 
-                // 右端スクロールバー
                 if showFastScroll {
                     FastScrollBar(
                         dragPosition: $dragPosition,
@@ -200,31 +227,31 @@ struct PhotoGrid: View {
                     )
                 }
 
-                // フルスクリーンスライダー
+                // MARK: - フルスクリーンスライダー
                 if let index = selectedIndex {
                     PhotoSliderView(
-                        fetchController: controller,
+                        photoController: photoController,
+                        folderController: folderController,
                         selectedIndex: index,
                         onClose: { selectedIndex = nil }
                     )
                     .zIndex(1)
                 }
 
-                // フローティングボタン
+                // MARK: - フローティングボタン
                 FloatingButtonPanel(
                     selectedPhotos: $selectedPhotos,
                     showPicker: .constant(false),
                     showSearch: .constant(false),
                     showFolderSheet: .constant(false),
-                    controller: controller
+                    controller: photoController
                 )
             }
         }
     }
 }
 
-//
-
+// MARK: - PhotoGridCell
 struct PhotoGridCell: View {
     var photo: Photo
     var isSelected: Bool
@@ -267,8 +294,7 @@ struct PhotoGridCell: View {
     }
 }
 
-//
-
+// MARK: - FloatingButtonPanel
 struct FloatingButtonPanel: View {
     @Binding var selectedPhotos: Set<Int>
     @Binding var showPicker: Bool
@@ -299,17 +325,5 @@ struct FloatingButtonPanel: View {
             }
             .padding(.bottom, 30)
         }
-    }
-}
-
-class ImageCache: ObservableObject {
-    @Published var cache: [String: UIImage] = [:]
-
-    func image(for key: String) -> UIImage? {
-        cache[key]
-    }
-
-    func set(_ image: UIImage, for key: String) {
-        cache[key] = image
     }
 }

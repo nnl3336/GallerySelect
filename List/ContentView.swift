@@ -16,11 +16,13 @@ import CoreData
 import SwiftUI
 import Photos
 
+
 // MARK: - SwiftUI ContentView
 struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
     
-    @ObservedObject var controller: PhotoController
+    @ObservedObject var photoController: PhotoController
+    @ObservedObject var folderController: FolderController
     @State private var currentScreen: AppScreen = .photos
 
     var body: some View {
@@ -28,9 +30,14 @@ struct ContentView: View {
             Group {
                 switch currentScreen {
                 case .photos:
-                    MainView(controller: controller)
+                    MainView(
+                        photoController: photoController,
+                        folderController: folderController
+                    )
                 case .albums:
-                    FolderListView(controller: controller)
+                    FolderListView(
+                        folderController: folderController
+                    )
                 }
             }
             .transition(.opacity)
@@ -139,7 +146,7 @@ struct ContentView: View {
 extension ContentView {
     
     func deletePhoto(at index: Int) {
-        let photo = controller.photos[index]  // ← controller.photos に変更
+        let photo = photoController.photos[index]  // ← controller.photos に変更
         viewContext.delete(photo)
         
         do {

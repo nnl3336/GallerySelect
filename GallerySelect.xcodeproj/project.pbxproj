@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		1867E7412E57DD3400AB3476 /* Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1867E73E2E57DD3400AB3476 /* Persistence.swift */; };
+		1867E74A2E57FEB400AB3476 /* SwiftUIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1867E7492E57FEB400AB3476 /* SwiftUIView.swift */; };
 		1869D0CE2E53443A002C028F /* FolderSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1869D0CD2E53443A002C028F /* FolderSheetView.swift */; };
 		188981272E4F301400D6539F /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 188981262E4F301400D6539F /* ContentView.swift */; };
 		18A62A212E50544900AFC31A /* GallerySelect.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 18A62A1D2E50544900AFC31A /* GallerySelect.xcdatamodeld */; };
@@ -40,6 +41,7 @@
 
 /* Begin PBXFileReference section */
 		1867E73E2E57DD3400AB3476 /* Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence.swift; sourceTree = "<group>"; };
+		1867E7492E57FEB400AB3476 /* SwiftUIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftUIView.swift; sourceTree = "<group>"; };
 		1869D0CD2E53443A002C028F /* FolderSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderSheetView.swift; sourceTree = "<group>"; };
 		1889811C2E4F301400D6539F /* GallerySelect.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GallerySelect.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		188981262E4F301400D6539F /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -144,6 +146,7 @@
 				18F54CB02E51F25900D337E5 /* ObservableObject.swift */,
 				18F54CB42E52E26400D337E5 /* extension .swift */,
 				18F54CB62E52E27700D337E5 /* Enum.swift */,
+				1867E7492E57FEB400AB3476 /* SwiftUIView.swift */,
 			);
 			path = Others;
 			sourceTree = "<group>";
@@ -299,6 +302,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1867E74A2E57FEB400AB3476 /* SwiftUIView.swift in Sources */,
 				1869D0CE2E53443A002C028F /* FolderSheetView.swift in Sources */,
 				188981272E4F301400D6539F /* ContentView.swift in Sources */,
 				18F54CB52E52E26400D337E5 /* extension .swift in Sources */,

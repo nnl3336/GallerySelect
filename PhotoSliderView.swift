@@ -25,7 +25,8 @@ class PhotoSliderViewModel: ObservableObject {
 }
 
 struct PhotoSliderView: View {
-    @ObservedObject var fetchController: PhotoController
+    @ObservedObject var photoController: PhotoController
+    @ObservedObject var folderController: FolderController
     @State var selectedIndex: Int
     var onClose: () -> Void
 
@@ -38,9 +39,9 @@ struct PhotoSliderView: View {
             Color.black.opacity(0.8).ignoresSafeArea()
             
             TabView(selection: $selectedIndex) {
-                ForEach(fetchController.photos.indices, id: \.self) { index in
+                ForEach(photoController.photos.indices, id: \.self) { index in
                     GeometryReader { geo in
-                        Image(uiImage: vm.cachedImage(for: index, photos: fetchController.photos))
+                        Image(uiImage: vm.cachedImage(for: index, photos: photoController.photos))
                             .resizable()
                             .scaledToFit()
                             .frame(width: geo.size.width, height: geo.size.height)

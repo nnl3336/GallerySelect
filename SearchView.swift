@@ -8,7 +8,8 @@
 import SwiftUI
 
 struct SearchView: View {
-    var photoController: PhotoController
+    @ObservedObject var photoController: PhotoController
+    @ObservedObject var folderController: FolderController
     @Binding var isPresented: Bool
     
     @State private var keyword = ""

@@ -35,6 +35,7 @@ struct ContentView: View {
                     )
                 case .albums:
                     FolderListView(
+                        photoController: photoController,
                         folderController: folderController
                     )
                 }
@@ -184,6 +185,7 @@ extension ContentView {
 
 // MARK: - SwiftUI MainView
 struct MainView: View {
+    @Environment(\.managedObjectContext) private var viewContext
     @ObservedObject var photoController: PhotoController
     @ObservedObject var folderController: FolderController
     @State private var selectedIndex: Int? = nil
@@ -196,6 +198,12 @@ struct MainView: View {
 
     let segments = ["後ろの月", "前の月", "すべての写真"]
     let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
+    
+    // Core Data から直接フェッチ
+    /*@FetchRequest(
+        entity: Photo.entity(),
+        sortDescriptors: [NSSortDescriptor(keyPath: \Photo.creationDate, ascending: false)]
+    ) private var photos: FetchedResults<Photo>*/
 
     var filteredPhotos: [Photo] {
         switch segmentSelection {
@@ -219,13 +227,74 @@ struct MainView: View {
             VStack {
                 ScrollViewReader { proxy in
                     ZStack(alignment: .bottomTrailing) {
-                        MyViewControllerRepresentable(
-                            photos: filteredPhotos,
-                            selectedPhotos: $selectedPhotos
-                        )
+                        ScrollView {
+                            LazyVGrid(columns: columns, spacing: 10) {
+                                ForEach(Array(photoController.photos.enumerated()), id: \.1) { (index, photo) in
+                                    if let data = photo.imageData, let uiImage = UIImage(data: data) {
+                                        Image(uiImage: uiImage)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(height: 100)
+                                            .clipped()
+                                            .cornerRadius(8)
+                                            .onTapGesture {
+                                                if !selectedPhotos.isEmpty {
+                                                    if selectedPhotos.contains(index) {
+                                                        selectedPhotos.remove(index)
+                                                    } else {
+                                                        selectedPhotos.insert(index)
+                                                    }
+                                                } else {
+                                                    withAnimation(.spring()) {
+                                                        selectedIndex = index
+                                                    }
+                                                }
+                                            }
+                                            .overlay(
+                                                selectedPhotos.contains(index) ? Color.blue.opacity(0.3).cornerRadius(8) : nil
+                                            )
+                                            .contextMenu {
+                                                Button {
+                                                    if selectedPhotos.contains(index) {
+                                                        selectedPhotos.remove(index)
+                                                    } else {
+                                                        selectedPhotos.insert(index)
+                                                    }
+                                                } label: {
+                                                    Label(selectedPhotos.contains(index) ? "選択解除" : "選択",
+                                                          systemImage: selectedPhotos.contains(index) ? "circle" : "checkmark.circle")
+                                                }
+
+                                                Button {
+                                                    UIImageWriteToSavedPhotosAlbum(uiImage, nil, nil, nil)
+                                                } label: {
+                                                    Label("保存", systemImage: "square.and.arrow.down")
+                                                }
+
+                                                Button {
+                                                    viewContext.delete(photo)
+                                                    try? viewContext.save()
+                                                } label: {
+                                                    Label("削除", systemImage: "trash")
+                                                }
+                                            }
+                                    } else {
+                                        // ダミー画像
+                                        Image(systemName: "photo")
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(height: 100)
+                                            .foregroundColor(.gray)
+                                    }
+                                }
+                            }
+                            .padding()
+                        }
 
                         if let index = selectedIndex {
                             PhotoSliderView(
+                                photoController: photoController,
+                                folderController: folderController,
                                 photos: filteredPhotos,     // ← filteredPhotos を渡す
                                 selectedIndex: index,
                                 onClose: { selectedIndex = nil }
@@ -235,11 +304,12 @@ struct MainView: View {
 
 
                         FloatingButtonPanel(
+                            photoController: photoController,
+                            folderController: folderController,
                             selectedPhotos: $selectedPhotos,
                             showPicker: $showPicker,
                             showSearch: $showSearch,
-                            showFolderSheet: $showFolderSheet,
-                            folderController: folderController
+                            showFolderSheet: $showFolderSheet
                         )
                     }
                 }
@@ -276,18 +346,24 @@ struct MainView: View {
         }
         .sheet(isPresented: $showFolderSheet) {
             FloatingButtonPanel(
+                photoController: photoController,
+                folderController: folderController,
                 selectedPhotos: $selectedPhotos,
                 showPicker: $showPicker,
                 showSearch: $showSearch,
-                showFolderSheet: $showFolderSheet,
-                folderController: folderController
+                showFolderSheet: $showFolderSheet
             )
         }
         .fullScreenCover(isPresented: $showSearch) {
-            SearchView(photoController: photoController, isPresented: $showSearch)
+            SearchView(
+                photoController: photoController,
+                folderController: folderController,
+                isPresented: $showSearch)
         }
         .fullScreenCover(isPresented: $showAlbum) {
-            FolderListView(folderController: folderController)
+            FolderListView(
+                photoController: photoController,
+                folderController: folderController)
         }
     }
 }
@@ -298,16 +374,20 @@ struct MainView: View {
 
 
 struct FloatingButtonPanel: View {
+    @ObservedObject var photoController: PhotoController
+    @ObservedObject var folderController: FolderController
     @Binding var selectedPhotos: Set<Int>
     @Binding var showPicker: Bool
     @Binding var showSearch: Bool
     @Binding var showFolderSheet: Bool
-    var folderController: FolderController
 
     var body: some View {
         VStack { Spacer()
             HStack {
-                NavigationLink(destination: FolderListView(folderController: folderController)) {
+                NavigationLink(destination: FolderListView(
+                    photoController: photoController,
+                    folderController: folderController
+                )) {
                     Image(systemName: "photo.on.rectangle")
                         .floatingStyle(color: .blue)
                 }
@@ -353,6 +433,8 @@ struct PhotoContextMenu: View {
         }
     }
 }
+
+//
 
 extension UIImage {
     /// 長辺を targetLength に合わせて縮小

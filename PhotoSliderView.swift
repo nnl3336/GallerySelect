@@ -9,6 +9,8 @@ import SwiftUI
 import Combine
 
 struct PhotoSliderView: View {
+    @ObservedObject var photoController: PhotoController
+    @ObservedObject var folderController: FolderController
     var photos: [Photo]           // <- 外部から渡す
     @State var selectedIndex: Int
     var onClose: () -> Void

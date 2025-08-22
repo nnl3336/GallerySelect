@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1867E7412E57DD3400AB3476 /* Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1867E73E2E57DD3400AB3476 /* Persistence.swift */; };
 		1869D0CE2E53443A002C028F /* FolderSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1869D0CD2E53443A002C028F /* FolderSheetView.swift */; };
 		188981272E4F301400D6539F /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 188981262E4F301400D6539F /* ContentView.swift */; };
 		18A62A212E50544900AFC31A /* GallerySelect.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 18A62A1D2E50544900AFC31A /* GallerySelect.xcdatamodeld */; };
@@ -38,6 +39,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		1867E73E2E57DD3400AB3476 /* Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence.swift; sourceTree = "<group>"; };
 		1869D0CD2E53443A002C028F /* FolderSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderSheetView.swift; sourceTree = "<group>"; };
 		1889811C2E4F301400D6539F /* GallerySelect.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GallerySelect.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		188981262E4F301400D6539F /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -97,15 +99,25 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		1867E7482E57E48900AB3476 /* List */ = {
+			isa = PBXGroup;
+			children = (
+				188981262E4F301400D6539F /* ContentView.swift */,
+				18F54CB82E52E5E400D337E5 /* MainView.swift */,
+			);
+			path = List;
+			sourceTree = "<group>";
+		};
 		188981132E4F301400D6539F = {
 			isa = PBXGroup;
 			children = (
 				18F54CAF2E51F24D00D337E5 /* Others */,
-				188981262E4F301400D6539F /* ContentView.swift */,
+				1867E7482E57E48900AB3476 /* List */,
 				18A62A2D2E50552500AFC31A /* PhotoSliderView.swift */,
 				18F54CAD2E51F1ED00D337E5 /* SearchView.swift */,
 				18F54CB22E52E12F00D337E5 /* AlbumView.swift */,
 				18F54CA12E50C2A400D337E5 /* GallerySelectApp.swift */,
+				1867E73E2E57DD3400AB3476 /* Persistence.swift */,
 				1869D0CD2E53443A002C028F /* FolderSheetView.swift */,
 				18F54CBA2E52E69400D337E5 /* - */,
 				18A62A1D2E50544900AFC31A /* GallerySelect.xcdatamodeld */,
@@ -139,7 +151,6 @@
 		18F54CBA2E52E69400D337E5 /* - */ = {
 			isa = PBXGroup;
 			children = (
-				18F54CB82E52E5E400D337E5 /* MainView.swift */,
 			);
 			path = "-";
 			sourceTree = "<group>";
@@ -297,6 +308,7 @@
 				18F54CB12E51F25900D337E5 /* ObservableObject.swift in Sources */,
 				18F54CAE2E51F1ED00D337E5 /* SearchView.swift in Sources */,
 				18F54CB92E52E5E400D337E5 /* MainView.swift in Sources */,
+				1867E7412E57DD3400AB3476 /* Persistence.swift in Sources */,
 				18F54CB32E52E12F00D337E5 /* AlbumView.swift in Sources */,
 				18F54CB72E52E27700D337E5 /* Enum.swift in Sources */,
 			);

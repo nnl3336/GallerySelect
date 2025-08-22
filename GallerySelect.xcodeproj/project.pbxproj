@@ -134,8 +134,6 @@
 			isa = PBXGroup;
 			children = (
 				188981262E4F301400D6539F /* ContentView.swift */,
-				189D47B82E56CDCD005FB6AF /* PhotoCell.swift */,
-				189D47BC2E56CE71005FB6AF /* MyViewControllerRepresentable.swift */,
 			);
 			path = "UICollectionView ";
 			sourceTree = "<group>";
@@ -154,6 +152,8 @@
 			isa = PBXGroup;
 			children = (
 				18F54CB82E52E5E400D337E5 /* MainView.swift */,
+				189D47B82E56CDCD005FB6AF /* PhotoCell.swift */,
+				189D47BC2E56CE71005FB6AF /* MyViewControllerRepresentable.swift */,
 			);
 			path = "-";
 			sourceTree = "<group>";

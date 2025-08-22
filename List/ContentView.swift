@@ -36,6 +36,7 @@ struct ContentView: View {
                     )
                 case .albums:
                     FolderListView(
+                        photoController: photoController,
                         folderController: folderController
                     )
                 }

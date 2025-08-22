@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct FolderListView: View {
+    @ObservedObject var photoController: PhotoController
     @ObservedObject var folderController: FolderController
     @State private var selectedFolder: Folder? = nil
 
@@ -21,7 +22,10 @@ struct FolderListView: View {
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 10) {
                     ForEach(folderController.folders, id: \.self) { folder in
-                        NavigationLink(destination: AlbumView(folder: folder, folderController: folderController)) {
+                        NavigationLink(destination: AlbumView(folder: folder,
+                                                              photoController: photoController,
+                                                              folderController: folderController)
+                        ) {
                             ZStack {
                                 Color.gray.opacity(0.3)
                                     .cornerRadius(8)

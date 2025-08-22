@@ -8,8 +8,13 @@
 import SwiftUI
 
 struct FolderListView: View {
-    @ObservedObject var folderController: FolderController
-    @State private var selectedFolder: Folder? = nil
+    @Environment(\.managedObjectContext) private var viewContext
+
+    // FetchRequestで直接取得
+    @FetchRequest(
+        entity: Folder.entity(),
+        sortDescriptors: [NSSortDescriptor(keyPath: \Folder.name, ascending: true)]
+    ) private var folders: FetchedResults<Folder>
 
     let columns = [
         GridItem(.flexible()),
@@ -20,8 +25,8 @@ struct FolderListView: View {
         NavigationView {
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 10) {
-                    ForEach(folderController.folders, id: \.self) { folder in
-                        NavigationLink(destination: AlbumView(folder: folder, folderController: folderController)) {
+                    ForEach(folders, id: \.objectID) { folder in
+                        NavigationLink(destination: AlbumView(folder: folder)) {
                             ZStack {
                                 Color.gray.opacity(0.3)
                                     .cornerRadius(8)
@@ -40,9 +45,9 @@ struct FolderListView: View {
     }
 }
 
+
 struct AlbumView: View {
     var folder: Folder
-    @ObservedObject var folderController: FolderController
     @State private var selectedIndex: Int? = nil
 
     let columns = [

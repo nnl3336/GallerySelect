@@ -24,18 +24,12 @@ struct PhotoSliderView: View {
             TabView(selection: $selectedIndex) {
                 ForEach(photos.indices, id: \.self) { index in
                     GeometryReader { geo in
-                        Image(uiImage: vm.cachedImage(for: index, photos: photos))
+                        Image(systemName: "photo")
                             .resizable()
                             .scaledToFit()
-                            .frame(width: geo.size.width, height: geo.size.height)
-                            .clipped()
-                            .scaleEffect(scaleForDrag())
-                            .offset(dragOffset)
-                            .onTapGesture {
-                                withAnimation {
-                                    showOverlay.toggle()
-                                }
-                            }
+                            .frame(width: 200, height: 200)
+                            .foregroundColor(.white)
+
                     }
                     .tag(index)
                 }

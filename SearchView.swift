@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct SearchView: View {
-    var photoController: PhotoController
+//    var photoController: PhotoController
     @Binding var isPresented: Bool
     
     @State private var keyword = ""
@@ -82,7 +82,7 @@ struct SearchView: View {
     }
     
     private func applyFilter() {
-        photoController.applyFilter(keyword: keyword, likedOnly: showLikedOnly)
+//        photoController.applyFilter(keyword: keyword, likedOnly: showLikedOnly)
         isPresented = false
     }
 }

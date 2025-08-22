@@ -20,8 +20,6 @@ import Photos
 struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
     
-    @ObservedObject var photoController: PhotoController
-    @ObservedObject var folderController: FolderController
     @State private var currentScreen: AppScreen = .photos
 
     var body: some View {
@@ -29,14 +27,9 @@ struct ContentView: View {
             Group {
                 switch currentScreen {
                 case .photos:
-                    MainView(
-                        photoController: photoController,
-                        folderController: folderController
-                    )
+                    MainView()
                 case .albums:
-                    FolderListView(
-                        folderController: folderController
-                    )
+                    FolderListView()
                 }
             }
             .transition(.opacity)
@@ -146,17 +139,6 @@ struct ContentView: View {
 
 extension ContentView {
     
-    func deletePhoto(at index: Int) {
-        let photo = photoController.photos[index]  // ← controller.photos に変更
-        viewContext.delete(photo)
-        
-        do {
-            try viewContext.save()
-        } catch {
-            print("削除エラー: \(error)")
-        }
-    }
-    
     func saveImageToCameraRoll(_ image: UIImage, creationDate: Date? = nil) {
         PHPhotoLibrary.requestAuthorization { status in
             guard status == .authorized || status == .limited else {
@@ -182,10 +164,12 @@ extension ContentView {
     }
 }
 
+
+
 // MARK: - SwiftUI MainView
 struct MainView: View {
-    @ObservedObject var photoController: PhotoController
-    @ObservedObject var folderController: FolderController
+    @Environment(\.managedObjectContext) private var viewContext
+
     @State private var selectedIndex: Int? = nil
     @State private var selectedPhotos = Set<Int>()
     @State private var showPicker = false
@@ -193,24 +177,31 @@ struct MainView: View {
     @State private var showFolderSheet = false
     @State private var showAlbum = false
     @State private var segmentSelection = 2
+    @State private var showFastScroll = false
+    @State private var dragPosition: CGFloat = 0
 
     let segments = ["後ろの月", "前の月", "すべての写真"]
     let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
 
+    @FetchRequest(
+        entity: Photo.entity(),
+        sortDescriptors: [NSSortDescriptor(keyPath: \Photo.creationDate, ascending: false)]
+    ) private var photos: FetchedResults<Photo>
+
     var filteredPhotos: [Photo] {
         switch segmentSelection {
-        case 0:
-            return photoController.photos.filter { photo in
+        case 0: // 後ろの月
+            return photos.filter { photo in
                 guard let date = photo.creationDate else { return false }
                 return Calendar.current.isDate(date, equalTo: Date().addingTimeInterval(30*24*60*60), toGranularity: .month)
             }
-        case 1:
-            return photoController.photos.filter { photo in
+        case 1: // 前の月
+            return photos.filter { photo in
                 guard let date = photo.creationDate else { return false }
                 return Calendar.current.isDate(date, equalTo: Date().addingTimeInterval(-30*24*60*60), toGranularity: .month)
             }
         default:
-            return photoController.photos
+            return Array(photos)
         }
     }
 
@@ -218,32 +209,55 @@ struct MainView: View {
         NavigationView {
             VStack {
                 ScrollViewReader { proxy in
-                    ZStack(alignment: .bottomTrailing) {
-                        MyViewControllerRepresentable(
-                            photos: filteredPhotos,
-                            selectedPhotos: $selectedPhotos
-                        )
-
-                        if let index = selectedIndex {
-                            PhotoSliderView(
-                                photos: filteredPhotos,     // ← filteredPhotos を渡す
-                                selectedIndex: index,
-                                onClose: { selectedIndex = nil }
-                            )
-                            .zIndex(1)
+                    ZStack(alignment: .trailing) {
+                        ScrollView {
+                            LazyVGrid(columns: columns, spacing: 10) {
+                                ForEach(photos, id: \.objectID) { photo in
+                                    if let data = photo.imageData, let uiImage = UIImage(data: data) {
+                                        Image(uiImage: uiImage)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(height: 100)
+                                            .clipped()
+                                            .cornerRadius(8)
+                                            .contextMenu {
+                                                
+                                                Button {
+                                                    saveImageToCameraRoll(uiImage)
+                                                } label: {
+                                                    Label("保存", systemImage: "square.and.arrow.down")
+                                                }
+                                                
+                                                // 削除
+                                                Button(role: .destructive) {
+                                                    deletePhoto(photo)
+                                                } label: {
+                                                    Label("削除", systemImage: "trash")
+                                                }
+                                            }
+                                    } else {
+                                        // デバッグ用にダミー画像
+                                        Image(systemName: "photo")
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(height: 100)
+                                            .foregroundColor(.gray)
+                                    }
+                                }
+                            }
+                            .padding()
                         }
-
-
+                        
+                        // フローティングボタン
                         FloatingButtonPanel(
                             selectedPhotos: $selectedPhotos,
                             showPicker: $showPicker,
                             showSearch: $showSearch,
-                            showFolderSheet: $showFolderSheet,
-                            folderController: folderController
+                            showFolderSheet: $showFolderSheet
                         )
                     }
                 }
-
+                
                 if selectedIndex == nil {
                     Picker("", selection: $segmentSelection) {
                         ForEach(0..<segments.count, id: \.self) { i in
@@ -270,26 +284,65 @@ struct MainView: View {
             PhotoPicker { images, assets in
                 for (i, image) in images.enumerated() {
                     let creationDate = (i < assets.count) ? assets[i].creationDate ?? Date() : Date()
-                    photoController.addPhoto(image, creationDate: creationDate)
+                    addPhoto(image)   // ← ここで image を渡す
                 }
             }
         }
-        .sheet(isPresented: $showFolderSheet) {
-            FloatingButtonPanel(
-                selectedPhotos: $selectedPhotos,
-                showPicker: $showPicker,
-                showSearch: $showSearch,
-                showFolderSheet: $showFolderSheet,
-                folderController: folderController
-            )
-        }
+        
         .fullScreenCover(isPresented: $showSearch) {
-            SearchView(photoController: photoController, isPresented: $showSearch)
+            SearchView(isPresented: $showSearch)
         }
         .fullScreenCover(isPresented: $showAlbum) {
-            FolderListView(folderController: folderController)
+            FolderListView()
         }
     }
+    
+    private func deletePhoto(_ photo: Photo) {
+        viewContext.delete(photo)
+        do {
+            try viewContext.save()
+        } catch {
+            print("削除エラー: \(error)")
+        }
+    }
+
+    
+    func saveImageToCameraRoll(_ image: UIImage, creationDate: Date? = nil) {
+        PHPhotoLibrary.requestAuthorization { status in
+            guard status == .authorized || status == .limited else {
+                print("権限なし")
+                return
+            }
+
+            PHPhotoLibrary.shared().performChanges({
+                let request = PHAssetChangeRequest.creationRequestForAsset(from: image)
+                if let date = creationDate {
+                    request.creationDate = date
+                }
+            }) { success, error in
+                DispatchQueue.main.async { // UI 更新は main thread
+                    if success {
+                        print("保存成功")
+                    } else {
+                        print("保存失敗: \(error?.localizedDescription ?? "")")
+                    }
+                }
+            }
+        }
+    }
+    
+    private func addPhoto(_ image: UIImage) {
+            let newPhoto = Photo(context: viewContext)
+            newPhoto.id = UUID()
+            newPhoto.creationDate = Date()
+            newPhoto.imageData = image.jpegData(compressionQuality: 0.8)
+
+            do {
+                try viewContext.save()
+            } catch {
+                print("保存エラー: \(error)")
+            }
+        }
 }
 
 
@@ -302,30 +355,44 @@ struct FloatingButtonPanel: View {
     @Binding var showPicker: Bool
     @Binding var showSearch: Bool
     @Binding var showFolderSheet: Bool
-    var folderController: FolderController
 
     var body: some View {
-        VStack { Spacer()
+        VStack {
+            Spacer()
             HStack {
-                NavigationLink(destination: FolderListView(folderController: folderController)) {
+                // FolderListView への NavigationLink
+                NavigationLink(destination: FolderListView()) {
                     Image(systemName: "photo.on.rectangle")
                         .floatingStyle(color: .blue)
                 }
-                Button { if !selectedPhotos.isEmpty { showFolderSheet = true } } label: {
+
+                Button {
+                    if !selectedPhotos.isEmpty {
+                        showFolderSheet = true
+                    }
+                } label: {
                     Image(systemName: "folder.badge.plus")
                         .floatingStyle(color: .purple)
                 }
+
                 Spacer()
-                Button { showSearch = true } label: {
+
+                Button {
+                    showSearch = true
+                } label: {
                     Image(systemName: "magnifyingglass")
                         .floatingStyle(color: .green)
                 }
-                Button { showPicker = true } label: {
+
+                Button {
+                    showPicker = true
+                } label: {
                     Image(systemName: "plus")
                         .floatingStyle(color: .orange)
                 }
             }
             .padding(.bottom, 30)
+            .padding(.horizontal)
         }
     }
 }

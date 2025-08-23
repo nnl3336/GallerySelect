@@ -229,7 +229,7 @@ struct MainView: View {
                     ZStack(alignment: .bottomTrailing) {
                         ScrollView {
                             LazyVGrid(columns: columns, spacing: 10) {
-                                ForEach(Array(photoController.photos.enumerated()), id: \.1) { (index, photo) in
+                                ForEach(photoController.frc.sections?[0].objects ?? [], id: \.objectID) { photo in
                                     if let data = photo.imageData, let uiImage = UIImage(data: data) {
                                         Image(uiImage: uiImage)
                                             .resizable()

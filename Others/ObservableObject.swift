@@ -103,6 +103,10 @@ class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDel
     
     //***
     
+    func photo(at indexPath: IndexPath) -> Photo {
+        return frc.object(at: indexPath)
+    }
+    
     // フィルタ適用
         func applyFilter(keyword: String, likedOnly: Bool) {
             var predicates: [NSPredicate] = []

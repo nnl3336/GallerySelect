@@ -27,20 +27,21 @@ struct PhotoDetailPager: View {
                             .tag(index)
                             .background(Color.black)
                             .ignoresSafeArea()
-                            .offset(y: dragOffset.height)
-                            .scaleEffect(scaleForDrag(dragOffset.height))
-                            .simultaneousGesture( // ← TabView の横スワイプより優先
+                            .offset(dragOffset) // ← X,Y 両方向に追従
+                            .scaleEffect(scaleForDrag(dragOffset))
+                            .highPriorityGesture(
                                 DragGesture()
                                     .onChanged { value in
-                                        // 縦方向が優勢なときだけ有効化
-                                        if abs(value.translation.height) > abs(value.translation.width) {
-                                            dragOffset = value.translation
-                                        }
+                                        dragOffset = value.translation
                                     }
                                     .onEnded { value in
-                                        if value.translation.height > 150 ||
-                                           value.predictedEndTranslation.height > 250 {
-                                            onClose?() // 閉じる
+                                        let distance = hypot(value.translation.width,
+                                                             value.translation.height)
+                                        let predicted = hypot(value.predictedEndTranslation.width,
+                                                              value.predictedEndTranslation.height)
+                                        if distance > 150 || predicted > 250 {
+                                            // 一定以上動かしたら閉じる
+                                            onClose?()
                                         }
                                         dragOffset = .zero
                                     }
@@ -62,13 +63,17 @@ struct PhotoDetailPager: View {
         .background(Color.black.opacity(backgroundAlpha))
     }
 
-    private func scaleForDrag(_ height: CGFloat) -> CGFloat {
-        let progress = min(max(height / 300, 0), 1)
+    /// ドラッグ距離に応じて縮小 (最低0.5倍まで)
+    private func scaleForDrag(_ offset: CGSize) -> CGFloat {
+        let distance = hypot(offset.width, offset.height)
+        let progress = min(max(distance / 300, 0), 1)
         return 1 - (0.5 * progress)
     }
 
+    /// 背景の透明度
     private var backgroundAlpha: Double {
-        let progress = min(max(dragOffset.height / 300, 0), 1)
+        let distance = hypot(dragOffset.width, dragOffset.height)
+        let progress = min(max(distance / 300, 0), 1)
         return Double(0.9 * (1 - progress))
     }
 }

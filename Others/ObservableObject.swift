@@ -143,22 +143,29 @@ class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDel
     init(context: NSManagedObjectContext) {
         self.context = context
         
-        let fetchRequest: NSFetchRequest<Photo> = Photo.fetchRequest()
-        fetchRequest.sortDescriptors = [NSSortDescriptor(keyPath: \Photo.creationDate, ascending: true)]
-        fetchRequest.fetchBatchSize = 20
+        let request: NSFetchRequest<Photo> = Photo.fetchRequest()
+        request.sortDescriptors = [NSSortDescriptor(keyPath: \Photo.creationDate, ascending: true)]
+        request.fetchBatchSize = 20  // ← バッチで取得
         
-        frc = NSFetchedResultsController(fetchRequest: fetchRequest,
-                                         managedObjectContext: context,
-                                         sectionNameKeyPath: nil,
-                                         cacheName: nil)
+        frc = NSFetchedResultsController(
+            fetchRequest: request,
+            managedObjectContext: context,
+            sectionNameKeyPath: nil,
+            cacheName: nil
+        )
+        
         super.init()
         frc.delegate = self
+        try? frc.performFetch()
+        photos = frc.fetchedObjects ?? []
+    }
+    
+    func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
+        photos = frc.fetchedObjects ?? []
         
-        do {
-            try frc.performFetch()
-            photos = frc.fetchedObjects ?? []
-        } catch {
-            print("Fetch error: \(error)")
+        guard let updatedPhotos = controller.fetchedObjects as? [Photo] else { return }
+        DispatchQueue.main.async {
+            self.photos = updatedPhotos
         }
     }
     
@@ -218,13 +225,6 @@ class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDel
             photos.remove(at: index)
         } catch {
             print(error)
-        }
-    }
-
-    func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
-        guard let updatedPhotos = controller.fetchedObjects as? [Photo] else { return }
-        DispatchQueue.main.async {
-            self.photos = updatedPhotos
         }
     }
 }

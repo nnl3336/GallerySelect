@@ -137,46 +137,58 @@ class PhotoCollectionViewController: UIViewController,
 
 
 class PhotoCollectionViewCell: UICollectionViewCell {
+    
     let imageView = UIImageView()
     let overlayView = UIView()
-    private let checkmark = UIImageView(image: UIImage(systemName: "checkmark.circle.fill"))
-
+    let checkmark = UIImageView(image: UIImage(systemName: "checkmark.circle.fill"))
+    
     override init(frame: CGRect) {
         super.init(frame: frame)
-
-        // 画像ビュー
+        
+        // 画像
         imageView.contentMode = .scaleAspectFill
         imageView.clipsToBounds = true
-        imageView.frame = contentView.bounds
-        imageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        imageView.layer.cornerRadius = 8
         contentView.addSubview(imageView)
-
-        // 半透明オーバーレイ
-        overlayView.backgroundColor = UIColor(white: 0, alpha: 0.3)
-        overlayView.frame = contentView.bounds
-        overlayView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            imageView.topAnchor.constraint(equalTo: contentView.topAnchor),
+            imageView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+            imageView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            imageView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor)
+        ])
+        
+        // 薄青オーバーレイ
+        overlayView.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.3)
         overlayView.isHidden = true
+        overlayView.layer.cornerRadius = 8
         contentView.addSubview(overlayView)
-
+        overlayView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            overlayView.topAnchor.constraint(equalTo: contentView.topAnchor),
+            overlayView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+            overlayView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            overlayView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor)
+        ])
+        
         // チェックマーク
-        checkmark.tintColor = .systemBlue
-        checkmark.frame = CGRect(x: contentView.bounds.width - 24, y: 4, width: 20, height: 20)
-        checkmark.autoresizingMask = [.flexibleLeftMargin, .flexibleBottomMargin]
+        checkmark.tintColor = .white
         checkmark.isHidden = true
         contentView.addSubview(checkmark)
+        checkmark.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            checkmark.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 5),
+            checkmark.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -5),
+            checkmark.widthAnchor.constraint(equalToConstant: 24),
+            checkmark.heightAnchor.constraint(equalToConstant: 24)
+        ])
     }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override var isSelected: Bool {
-        didSet {
-            overlayView.isHidden = !isSelected
-            checkmark.isHidden = !isSelected
-            layer.borderWidth = isSelected ? 2 : 0
-            layer.borderColor = isSelected ? UIColor.systemBlue.cgColor : nil
-        }
+    
+    required init?(coder: NSCoder) { fatalError() }
+    
+    func setSelectedAppearance(_ selected: Bool) {
+        overlayView.isHidden = !selected
+        checkmark.isHidden = !selected
     }
 }
 

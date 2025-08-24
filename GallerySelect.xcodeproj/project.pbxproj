@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		1867E7802E581C9400AB3476 /* SwiftUIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1867E77F2E581C9400AB3476 /* SwiftUIView.swift */; };
 		1869D0CE2E53443A002C028F /* FolderSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1869D0CD2E53443A002C028F /* FolderSheetView.swift */; };
+		187071BE2E5ADF6D00098142 /* PhotoGridViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 187071BD2E5ADF6D00098142 /* PhotoGridViewController.swift */; };
 		188981272E4F301400D6539F /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 188981262E4F301400D6539F /* ContentView.swift */; };
 		189D47B92E56CDCD005FB6AF /* PhotoCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 189D47B82E56CDCD005FB6AF /* PhotoCell.swift */; };
 		189D47BD2E56CE71005FB6AF /* MyViewControllerRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 189D47BC2E56CE71005FB6AF /* MyViewControllerRepresentable.swift */; };
@@ -43,6 +44,7 @@
 /* Begin PBXFileReference section */
 		1867E77F2E581C9400AB3476 /* SwiftUIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftUIView.swift; sourceTree = "<group>"; };
 		1869D0CD2E53443A002C028F /* FolderSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderSheetView.swift; sourceTree = "<group>"; };
+		187071BD2E5ADF6D00098142 /* PhotoGridViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoGridViewController.swift; sourceTree = "<group>"; };
 		1889811C2E4F301400D6539F /* GallerySelect.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GallerySelect.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		188981262E4F301400D6539F /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		188981322E4F301600D6539F /* GallerySelectTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GallerySelectTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -136,6 +138,7 @@
 			isa = PBXGroup;
 			children = (
 				188981262E4F301400D6539F /* ContentView.swift */,
+				187071BD2E5ADF6D00098142 /* PhotoGridViewController.swift */,
 			);
 			path = "UICollectionView ";
 			sourceTree = "<group>";
@@ -312,6 +315,7 @@
 				18A62A2E2E50552500AFC31A /* PhotoSliderView.swift in Sources */,
 				18F54CA52E50C2A400D337E5 /* GallerySelectApp.swift in Sources */,
 				189D47B92E56CDCD005FB6AF /* PhotoCell.swift in Sources */,
+				187071BE2E5ADF6D00098142 /* PhotoGridViewController.swift in Sources */,
 				18F54CB12E51F25900D337E5 /* ObservableObject.swift in Sources */,
 				18F54CAE2E51F1ED00D337E5 /* SearchView.swift in Sources */,
 				189D47BD2E56CE71005FB6AF /* MyViewControllerRepresentable.swift in Sources */,

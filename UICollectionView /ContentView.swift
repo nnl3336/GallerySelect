@@ -234,10 +234,15 @@ struct MainView: View {
                     ZStack(alignment: .bottomTrailing) {
                         TabView {
                             ForEach(viewModel.photos.indices, id: \.self) { index in
-                                PhotoDetailView(photo: viewModel.photos[index], onClose: {
-                                    print("閉じた写真: \(index)")
-                                })
-                                .edgesIgnoringSafeArea(.all)
+                                PhotoCollectionViewRepresentable(
+                                    viewModel: viewModel,
+                                    onSelectPhoto: { photo in
+                                        selectedPhoto = photo
+                                    },
+                                    onSelectMultiple: { photos in
+                                        selectedPhotos = photos
+                                    }
+                                )
                             }
                         }
                         .tabViewStyle(.page(indexDisplayMode: .automatic))

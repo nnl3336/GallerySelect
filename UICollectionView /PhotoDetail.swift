@@ -7,7 +7,76 @@
 
 import SwiftUI
 
-class PhotoDetailViewController: UIViewController {
+
+struct PhotoDetailPager: View {
+    let photos: [Photo]
+    @Binding var selectedIndex: Int
+    var onClose: (() -> Void)?
+
+    @State private var dragOffset: CGSize = .zero
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            TabView(selection: $selectedIndex) {
+                ForEach(photos.indices, id: \.self) { index in
+                    if let data = photos[index].imageData,
+                       let uiImage = UIImage(data: data) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFit()
+                            .tag(index)
+                            .background(Color.black)
+                            .ignoresSafeArea()
+                            .offset(y: dragOffset.height)
+                            .scaleEffect(scaleForDrag(dragOffset.height))
+                            .simultaneousGesture( // ← TabView の横スワイプより優先
+                                DragGesture()
+                                    .onChanged { value in
+                                        // 縦方向が優勢なときだけ有効化
+                                        if abs(value.translation.height) > abs(value.translation.width) {
+                                            dragOffset = value.translation
+                                        }
+                                    }
+                                    .onEnded { value in
+                                        if value.translation.height > 150 ||
+                                           value.predictedEndTranslation.height > 250 {
+                                            onClose?() // 閉じる
+                                        }
+                                        dragOffset = .zero
+                                    }
+                            )
+                            .animation(.spring(), value: dragOffset)
+                    }
+                }
+            }
+            .tabViewStyle(PageTabViewStyle(indexDisplayMode: .always))
+
+            // 閉じるボタン
+            Button(action: { onClose?() }) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 30))
+                    .foregroundColor(.white)
+                    .padding()
+            }
+        }
+        .background(Color.black.opacity(backgroundAlpha))
+    }
+
+    private func scaleForDrag(_ height: CGFloat) -> CGFloat {
+        let progress = min(max(height / 300, 0), 1)
+        return 1 - (0.5 * progress)
+    }
+
+    private var backgroundAlpha: Double {
+        let progress = min(max(dragOffset.height / 300, 0), 1)
+        return Double(0.9 * (1 - progress))
+    }
+}
+
+
+
+
+/*class PhotoDetailViewController: UIViewController {
 
     private let imageView = UIImageView()
     private var photo: Photo
@@ -125,3 +194,4 @@ struct PhotoDetailView: UIViewControllerRepresentable {
         // 更新処理は特に必要なければ空
     }
 }
+*/

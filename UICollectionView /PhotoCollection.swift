@@ -76,7 +76,6 @@ class PhotoCollectionViewController: UIViewController,
         guard let photo = viewModel.photo(at: indexPath.item) else { return }
 
         if isSelectionMode {
-            // 選択モード中 → 選択/解除
             if let idx = selectedPhotos.firstIndex(of: photo) {
                 selectedPhotos.remove(at: idx)
                 collectionView.deselectItem(at: indexPath, animated: true)
@@ -85,12 +84,30 @@ class PhotoCollectionViewController: UIViewController,
             }
             notifySelectionChanged()
         } else {
-            // 拡大表示
-            let detailVC = PhotoDetailViewController(photo: photo)
-            detailVC.onClose = { print("閉じた") }
-            present(detailVC, animated: true)
+            // 拡大表示にまとめる
+            showPhotoFullScreen(at: indexPath.item)
         }
     }
+
+    func showPhotoFullScreen(at index: Int) {
+        var currentIndex = index
+        let hosting = UIHostingController(
+            rootView: PhotoDetailPager(
+                photos: viewModel.photos,  // 配列全体を渡す
+                selectedIndex: Binding(
+                    get: { currentIndex },
+                    set: { newValue in currentIndex = newValue }
+                ),
+                onClose: { [weak self] in
+                    self?.dismiss(animated: true, completion: nil)
+                }
+            )
+        )
+        hosting.modalPresentationStyle = .fullScreen
+        present(hosting, animated: true, completion: nil)
+    }
+
+
 
 
     func collectionView(_ collectionView: UICollectionView, didDeselectItemAt indexPath: IndexPath) {

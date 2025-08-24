@@ -30,7 +30,27 @@ class PhotoCollectionViewController: UIViewController,
     
     var onSelectionModeChanged: ((Bool) -> Void)?
     
+    private var photos: [Photo]         // 表示する画像の配列
+        private var currentIndex: Int       // 現在表示中のインデックス
+        let tappedIndex = 3                 // サンプルで固定してる開始インデックス
 
+        var onClose: (() -> Void)?
+
+        // MARK: - イニシャライザ
+    init(photos: [Photo], startIndex: Int = 0) {
+        self.photos = photos
+        self.currentIndex = startIndex
+        super.init(nibName: nil, bundle: nil)  // ← UIViewController用
+        modalPresentationStyle = .overFullScreen
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    
+    //***
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .white
@@ -86,7 +106,7 @@ class PhotoCollectionViewController: UIViewController,
             notifySelectionChanged()
         } else {
             // 拡大表示
-            let detailVC = PhotoDetailViewController(photo: photo)
+            let detailVC = PhotoDetailViewController(photos: photos, startIndex: tappedIndex)
             detailVC.onClose = { print("閉じた") }
             present(detailVC, animated: true)
         }
@@ -135,6 +155,7 @@ class PhotoCollectionViewController: UIViewController,
     }
 }
 
+//
 
 class PhotoCollectionViewCell: UICollectionViewCell {
     
@@ -199,7 +220,8 @@ struct PhotoCollectionViewRepresentable: UIViewControllerRepresentable {
     var onSelectMultiple: (([Photo]) -> Void)?
 
     func makeUIViewController(context: Context) -> PhotoCollectionViewController {
-        let vc = PhotoCollectionViewController()
+        let allPhotos = viewModel.frc.fetchedObjects ?? [] // FRC から配列を取得
+        let vc = PhotoCollectionViewController(photos: allPhotos)
         vc.viewModel = viewModel
         vc.onSelectPhoto = onSelectPhoto
         vc.onSelectMultiple = onSelectMultiple

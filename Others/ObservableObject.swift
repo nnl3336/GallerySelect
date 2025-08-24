@@ -12,7 +12,7 @@ import Photos
 // MARK: - ViewModel (CoreData + FRC)
 class PhotoFRCController: NSObject, ObservableObject, NSFetchedResultsControllerDelegate {
     private let context: NSManagedObjectContext
-    private var frc: NSFetchedResultsController<Photo>!
+    var frc: NSFetchedResultsController<Photo>!
     private weak var collectionView: UICollectionView?
 
     init(context: NSManagedObjectContext) {

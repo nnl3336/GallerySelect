@@ -232,13 +232,15 @@ struct MainView: View {
             VStack {
                 ScrollViewReader { proxy in
                     ZStack(alignment: .bottomTrailing) {
-                        PhotoCollectionViewRepresentable(viewModel: viewModel,
-                                                         onSelectPhoto: { photo in
-                            selectedPhoto = photo
-                        },
-                                                         onSelectMultiple: { photos in
-                            selectedPhotos = photos
-                        })
+                        TabView {
+                            ForEach(viewModel.photos.indices, id: \.self) { index in
+                                PhotoDetailView(photo: viewModel.photos.indices[index], onClose: {
+                                    print("閉じた写真: \(index)")
+                                })
+                                .edgesIgnoringSafeArea(.all)
+                            }
+                        }
+                        .tabViewStyle(PageTabViewStyle()) // スワイプでページ切り替え
                         
                         if let index = selectedIndex {
                             PhotoSliderView(

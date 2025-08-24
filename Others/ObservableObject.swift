@@ -12,7 +12,7 @@ import Photos
 // MARK: - ViewModel (CoreData + FRC)
 class PhotoFRCController: NSObject, ObservableObject, NSFetchedResultsControllerDelegate {
     private let context: NSManagedObjectContext
-    private var frc: NSFetchedResultsController<Photo>!
+    var frc: NSFetchedResultsController<Photo>!
     private weak var collectionView: UICollectionView?
 
     init(context: NSManagedObjectContext) {
@@ -37,6 +37,11 @@ class PhotoFRCController: NSObject, ObservableObject, NSFetchedResultsController
         } catch {
             print("FRC fetch error: \(error)")
         }
+    }
+    
+    // 公開用配列
+    var photos: [Photo] {
+        frc.fetchedObjects ?? []
     }
 
     // MARK: - Public API

@@ -111,3 +111,17 @@ class PhotoDetailViewController: UIViewController {
     }
 }
 
+struct PhotoDetailView: UIViewControllerRepresentable {
+    let photo: Photo
+    var onClose: (() -> Void)? = nil
+
+    func makeUIViewController(context: Context) -> PhotoDetailViewController {
+        let vc = PhotoDetailViewController(photo: photo)
+        vc.onClose = onClose
+        return vc
+    }
+
+    func updateUIViewController(_ uiViewController: PhotoDetailViewController, context: Context) {
+        // 更新処理は特に必要なければ空
+    }
+}

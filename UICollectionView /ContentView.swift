@@ -232,15 +232,16 @@ struct MainView: View {
             VStack {
                 ScrollViewReader { proxy in
                     ZStack(alignment: .bottomTrailing) {
-                                PhotoCollectionViewRepresentable(
-                                    viewModel: viewModel,
-                                    onSelectPhoto: { photo in
-                                        selectedPhoto = photo
-                                    },
-                                    onSelectMultiple: { photos in
-                                        selectedPhotos = photos
-                                    }
-                                )
+                        PhotoCollectionViewRepresentable(
+                            viewModel: viewModel,
+                            onSelectPhoto: { photo in
+                                selectedPhoto = photo
+                            },
+                            onSelectMultiple: { photos in
+                                selectedPhotos = photos
+                                isSelectionMode = !photos.isEmpty // ←ここで選択モード状態も更新
+                            }
+                        )
                             
                         
 
@@ -282,7 +283,7 @@ struct MainView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .bottomBar) {
                     Spacer()
-                    if !selectedPhotos.isEmpty {
+                    if isSelectionMode {
                         Button("Cancel") {
                             selectedPhotos.removeAll()
                         }

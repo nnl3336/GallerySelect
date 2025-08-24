@@ -53,6 +53,17 @@ class PhotoCollectionViewController: UIViewController,
 
         viewModel.attach(collectionView: collectionView)
     }
+    
+    private func notifySelectionChanged() {
+        onSelectMultiple?(selectedPhotos)
+        onSelectionModeChanged?(isSelectionMode)
+        collectionView.reloadData()
+        
+        // selectedPhotos が空なら選択モードを終了
+        if selectedPhotos.isEmpty {
+            isSelectionMode = false
+        }
+    }
 
     // MARK: - UICollectionViewDataSource
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
@@ -136,12 +147,6 @@ class PhotoCollectionViewController: UIViewController,
             }
             return UIMenu(title: "", children: [select, delete])
         }
-    }
-
-    // MARK: - 選択通知
-    private func notifySelectionChanged() {
-        onSelectMultiple?(selectedPhotos)
-        collectionView.reloadData()
     }
 
     // MARK: - 選択モード終了

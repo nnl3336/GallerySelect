@@ -93,15 +93,15 @@ class PhotoCollectionViewController: UIViewController,
         var currentIndex = index
         let hosting = UIHostingController(
             rootView: PhotoDetailPager(
-                photos: viewModel.photos,  // 配列全体を渡す
+                photos: viewModel.photos,
                 selectedIndex: Binding(
                     get: { currentIndex },
                     set: { newValue in currentIndex = newValue }
                 ),
                 onClose: { [weak self] in
                     self?.dismiss(animated: true, completion: nil)
-                },
-                photoFRCController: viewModel
+                }
+                // photoFRCController: viewModel // ←不要なら削除
             )
         )
         hosting.modalPresentationStyle = .fullScreen

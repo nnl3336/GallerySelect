@@ -8,9 +8,9 @@
 import SwiftUI
 
 
-struct PhotoDetailPager: View {
+struct PhotoGridView: View {
     let photos: [Photo]
-    @Binding var selectedIndex: Int
+    @Binding var selectedIndex: Int?
     var onClose: (() -> Void)?
 
     @State private var dragOffset: CGSize = .zero
@@ -18,8 +18,54 @@ struct PhotoDetailPager: View {
     @ObservedObject var photoFRCController: PhotoFRCController
 
     var body: some View {
+        ZStack {
+            // 1️⃣ サムネイル一覧
+            ScrollView {
+                LazyVGrid(columns: Array(repeating: .init(.flexible()), count: 3)) {
+                    ForEach(photos.indices, id: \.self) { index in
+                        if let data = photos[index].imageData,
+                           let uiImage = UIImage(data: data) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(height: 100)
+                                .clipped()
+                                .onTapGesture {
+                                    selectedIndex = index // タップしたら拡大
+                                }
+                        }
+                    }
+                }
+                .padding()
+            }
+
+            // 2️⃣ フルスクリーンページャー
+            if let selectedIndex = selectedIndex {
+                PhotoDetailPager(
+                    photos: photos,
+                    selectedIndex: Binding(
+                        get: { selectedIndex },
+                        set: { self.selectedIndex = $0 }
+                    ),
+                    onClose: {
+                        self.selectedIndex = nil
+                    }
+                )
+                .transition(.opacity)
+            }
+        }
+    }
+}
+
+struct PhotoDetailPager: View {
+    let photos: [Photo]
+    @Binding var selectedIndex: Int
+    var onClose: (() -> Void)?
+
+    @State private var dragOffset: CGSize = .zero
+
+    var body: some View {
         ZStack(alignment: .topTrailing) {
-            // ✅ 横スワイプでページング
             TabView(selection: $selectedIndex) {
                 ForEach(photos.indices, id: \.self) { index in
                     if let data = photos[index].imageData,
@@ -29,25 +75,21 @@ struct PhotoDetailPager: View {
                             .scaledToFit()
                             .tag(index)
                             .ignoresSafeArea()
-                            // 下スワイプで移動 & 縮小
                             .offset(dragOffset)
                             .scaleEffect(scaleForDrag(dragOffset))
                             .highPriorityGesture(
                                 DragGesture()
                                     .onChanged { value in
-                                        // 縦方向が強いときだけ閉じる動作
                                         if abs(value.translation.height) > abs(value.translation.width) {
                                             dragOffset = value.translation
                                         }
                                     }
                                     .onEnded { value in
-                                        if abs(value.translation.height) > abs(value.translation.width) {
-                                            if value.translation.height > 150 ||
-                                               value.predictedEndTranslation.height > 250 {
-                                                onClose?()
-                                            }
-                                            dragOffset = .zero
+                                        if value.translation.height > 150 ||
+                                            value.predictedEndTranslation.height > 250 {
+                                            onClose?()
                                         }
+                                        dragOffset = .zero
                                     }
                             )
                             .animation(.spring(), value: dragOffset)
@@ -56,7 +98,6 @@ struct PhotoDetailPager: View {
             }
             .tabViewStyle(PageTabViewStyle(indexDisplayMode: .always))
 
-            // 閉じるボタン
             Button(action: { onClose?() }) {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 30))
@@ -65,19 +106,16 @@ struct PhotoDetailPager: View {
             }
         }
         .background(Color.black.opacity(backgroundAlpha))
+        .ignoresSafeArea()
     }
 
-    /// ドラッグ距離に応じて縮小 (最低0.5倍まで)
     private func scaleForDrag(_ offset: CGSize) -> CGFloat {
-        let distance = hypot(offset.width, offset.height)
-        let progress = min(max(distance / 300, 0), 1)
+        let progress = min(max(offset.height / 300, 0), 1)
         return 1 - (0.5 * progress)
     }
 
-    /// 背景の透明度
     private var backgroundAlpha: Double {
-        let distance = hypot(dragOffset.width, dragOffset.height)
-        let progress = min(max(distance / 300, 0), 1)
+        let progress = min(max(dragOffset.height / 300, 0), 1)
         return Double(0.9 * (1 - progress))
     }
 }

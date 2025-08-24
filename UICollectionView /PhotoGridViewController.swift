@@ -9,10 +9,10 @@ import SwiftUI
 import UIKit
 import Photos
 
+// MARK: - PhotoGridViewController
 class PhotoGridViewController: UIViewController, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout {
     
     var photos: [Photo] = [] // Core Data などから取得
-    
     private var collectionView: UICollectionView!
     
     override func viewDidLoad() {
@@ -22,7 +22,7 @@ class PhotoGridViewController: UIViewController, UICollectionViewDataSource, UIC
         let layout = UICollectionViewFlowLayout()
         layout.minimumInteritemSpacing = 10
         layout.minimumLineSpacing = 10
-        let itemWidth = (view.frame.width - 30) / 3 // 3列の場合
+        let itemWidth = (view.frame.width - 30) / 3
         layout.itemSize = CGSize(width: itemWidth, height: 100)
         
         collectionView = UICollectionView(frame: view.bounds, collectionViewLayout: layout)
@@ -42,12 +42,9 @@ class PhotoGridViewController: UIViewController, UICollectionViewDataSource, UIC
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         let photo = photos[indexPath.item]
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PhotoCell", for: indexPath) as! PhotoCell
-        if let data = photo.imageData, let image = UIImage(data: data) {
-            cell.imageView.image = image
-        } else {
-            cell.imageView.image = UIImage(systemName: "photo")
-        }
-        cell.configureContextMenu { [weak self] action in
+        cell.configure(with: photo, selected: false)
+        
+        cell.actionHandler = { [weak self] (action: PhotoCellAction) in
             guard let self = self else { return }
             switch action {
             case .save:
@@ -56,8 +53,11 @@ class PhotoGridViewController: UIViewController, UICollectionViewDataSource, UIC
                 }
             case .delete:
                 self.deletePhoto(photo)
+            case .toggleSelection:
+                cell.isSelectedPhoto.toggle()
             }
         }
+        
         return cell
     }
     
@@ -69,46 +69,9 @@ class PhotoGridViewController: UIViewController, UICollectionViewDataSource, UIC
     
     func deletePhoto(_ photo: Photo) {
         // Core Data から削除処理
-    }
-}
-
-// MARK: - PhotoCell
-
-@available(iOS 13.0, *)
-extension PhotoCell: UIContextMenuInteractionDelegate {
-    func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
-                                configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
-        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
-            let save = UIAction(title: "保存", image: UIImage(systemName: "square.and.arrow.down")) { [weak self] _ in
-                self?.actionHandler?(.save)
-            }
-            let delete = UIAction(title: "削除", image: UIImage(systemName: "trash"), attributes: .destructive) { [weak self] _ in
-                self?.actionHandler?(.delete)
-            }
-            return UIMenu(title: "", children: [save, delete])
+        if let index = photos.firstIndex(where: { $0 == photo }) {
+            photos.remove(at: index)
+            collectionView.deleteItems(at: [IndexPath(item: index, section: 0)])
         }
     }
 }
-
-//
-
-struct PhotoGridView: UIViewControllerRepresentable {
-    
-    var photos: [Photo]
-    var onSelectPhoto: ((Photo) -> Void)?
-    var onDeletePhoto: ((Photo) -> Void)?
-    
-    func makeUIViewController(context: Context) -> PhotoGridViewController {
-        let vc = PhotoGridViewController()
-        vc.photos = photos
-        vc.onSelectPhoto = onSelectPhoto
-        vc.onDeletePhoto = onDeletePhoto
-        return vc
-    }
-    
-    func updateUIViewController(_ uiViewController: PhotoGridViewController, context: Context) {
-        uiViewController.photos = photos
-        uiViewController.collectionView.reloadData()
-    }
-}
-

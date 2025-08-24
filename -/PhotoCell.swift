@@ -7,13 +7,24 @@
 
 import SwiftUI
 
+
+// MARK: - PhotoCellAction
+enum PhotoCellAction {
+    case save
+    case delete
+    case toggleSelection
+}
+
+// MARK: - PhotoCellDelegate
 protocol PhotoCellDelegate: AnyObject {
     func photoCellDidToggleSelection(_ cell: PhotoCell)
     func photoCellDidSave(_ cell: PhotoCell)
     func photoCellDidDelete(_ cell: PhotoCell)
 }
 
+// MARK: - PhotoCell
 class PhotoCell: UICollectionViewCell {
+    
     static let reuseIdentifier = "PhotoCell"
     let imageView = UIImageView()
     private let overlayView = UIView() // 選択時カバー
@@ -22,10 +33,13 @@ class PhotoCell: UICollectionViewCell {
     var isSelectedPhoto: Bool = false {
         didSet {
             overlayView.isHidden = !isSelectedPhoto
-            contentView.bringSubviewToFront(overlayView) // 上に出す
+            contentView.bringSubviewToFront(overlayView)
         }
     }
-
+    
+    // クロージャ方式でも対応可能
+    var actionHandler: ((PhotoCellAction) -> Void)?
+    
     override init(frame: CGRect) {
         super.init(frame: frame)
         
@@ -58,11 +72,11 @@ class PhotoCell: UICollectionViewCell {
         let interaction = UIContextMenuInteraction(delegate: self)
         self.addInteraction(interaction)
     }
-
+    
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-
+    
     // 画像セット + 選択状態セット
     func configure(with photo: Photo, selected: Bool) {
         isSelectedPhoto = selected
@@ -79,7 +93,8 @@ class PhotoCell: UICollectionViewCell {
     }
 }
 
-// MARK: - ContextMenu
+// MARK: - UIContextMenuInteractionDelegate
+@available(iOS 13.0, *)
 extension PhotoCell: UIContextMenuInteractionDelegate {
     func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
                                 configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
@@ -87,26 +102,26 @@ extension PhotoCell: UIContextMenuInteractionDelegate {
             let toggleSelection = UIAction(
                 title: self.isSelectedPhoto ? "選択解除" : "選択",
                 image: UIImage(systemName: "checkmark.circle")
-            ) { _ in
-                self.delegate?.photoCellDidToggleSelection(self)
+            ) { [weak self] _ in
+                self?.actionHandler?(.toggleSelection)
             }
-
-            let saveAction = UIAction(
+            
+            let save = UIAction(
                 title: "保存",
                 image: UIImage(systemName: "square.and.arrow.down")
-            ) { _ in
-                self.delegate?.photoCellDidSave(self)
+            ) { [weak self] _ in
+                self?.actionHandler?(.save)
             }
-
-            let deleteAction = UIAction(
+            
+            let delete = UIAction(
                 title: "削除",
                 image: UIImage(systemName: "trash"),
                 attributes: .destructive
-            ) { _ in
-                self.delegate?.photoCellDidDelete(self)
+            ) { [weak self] _ in
+                self?.actionHandler?(.delete)
             }
-
-            return UIMenu(title: "", children: [toggleSelection, saveAction, deleteAction])
+            
+            return UIMenu(title: "", children: [toggleSelection, save, delete])
         }
     }
 }

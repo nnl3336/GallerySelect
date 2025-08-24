@@ -74,37 +74,6 @@ class PhotoGridViewController: UIViewController, UICollectionViewDataSource, UIC
 
 // MARK: - PhotoCell
 
-class PhotoCell: UICollectionViewCell {
-    let imageView = UIImageView()
-    
-    enum ContextAction {
-        case save
-        case delete
-    }
-    
-    private var actionHandler: ((ContextAction) -> Void)?
-    
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        imageView.frame = contentView.bounds
-        imageView.contentMode = .scaleAspectFill
-        imageView.clipsToBounds = true
-        imageView.layer.cornerRadius = 8
-        contentView.addSubview(imageView)
-    }
-    
-    required init?(coder: NSCoder) { fatalError() }
-    
-    func configureContextMenu(actionHandler: @escaping (ContextAction) -> Void) {
-        self.actionHandler = actionHandler
-        // iOS 13+ コンテキストメニュー
-        if #available(iOS 13.0, *) {
-            let interaction = UIContextMenuInteraction(delegate: self)
-            self.addInteraction(interaction)
-        }
-    }
-}
-
 @available(iOS 13.0, *)
 extension PhotoCell: UIContextMenuInteractionDelegate {
     func contextMenuInteraction(_ interaction: UIContextMenuInteraction,

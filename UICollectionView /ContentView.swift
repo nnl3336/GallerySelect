@@ -189,7 +189,7 @@ struct MainView: View {
     @ObservedObject var photoController: PhotoController
     @ObservedObject var folderController: FolderController
     @State private var selectedIndex: Int? = nil
-    @State private var selectedPhotos = Set<Int>()
+    //@State private var selectedPhotos = Set<Int>()
     @State private var showPicker = false
     @State private var showSearch = false
     @State private var showFolderSheet = false
@@ -221,76 +221,25 @@ struct MainView: View {
             return photoController.photos
         }
     }
+    
+    @StateObject var viewModel = PhotoFRCController(context: PersistenceController.shared.container.viewContext)
+    @State private var selectedPhoto: Photo?
+    @State private var selectedPhotos: [Photo] = []
+    @State private var isSelectionMode = false
 
     var body: some View {
         NavigationView {
             VStack {
                 ScrollViewReader { proxy in
                     ZStack(alignment: .bottomTrailing) {
-                        ScrollView {
-                            LazyVGrid(columns: columns, spacing: 10) {
-                                ForEach(photoController.frc.sections?[0].objects ?? [], id: \.objectID) { photo in
-                                    if let data = photo.imageData, let uiImage = UIImage(data: data) {
-                                        Image(uiImage: uiImage)
-                                            .resizable()
-                                            .scaledToFill()
-                                            .frame(height: 100)
-                                            .clipped()
-                                            .cornerRadius(8)
-                                            .onTapGesture {
-                                                if !selectedPhotos.isEmpty {
-                                                    if selectedPhotos.contains(index) {
-                                                        selectedPhotos.remove(index)
-                                                    } else {
-                                                        selectedPhotos.insert(index)
-                                                    }
-                                                } else {
-                                                    withAnimation(.spring()) {
-                                                        selectedIndex = index
-                                                    }
-                                                }
-                                            }
-                                            .overlay(
-                                                selectedPhotos.contains(index) ? Color.blue.opacity(0.3).cornerRadius(8) : nil
-                                            )
-                                            .contextMenu {
-                                                Button {
-                                                    if selectedPhotos.contains(index) {
-                                                        selectedPhotos.remove(index)
-                                                    } else {
-                                                        selectedPhotos.insert(index)
-                                                    }
-                                                } label: {
-                                                    Label(selectedPhotos.contains(index) ? "選択解除" : "選択",
-                                                          systemImage: selectedPhotos.contains(index) ? "circle" : "checkmark.circle")
-                                                }
-
-                                                Button {
-                                                    UIImageWriteToSavedPhotosAlbum(uiImage, nil, nil, nil)
-                                                } label: {
-                                                    Label("保存", systemImage: "square.and.arrow.down")
-                                                }
-
-                                                Button {
-                                                    viewContext.delete(photo)
-                                                    try? viewContext.save()
-                                                } label: {
-                                                    Label("削除", systemImage: "trash")
-                                                }
-                                            }
-                                    } else {
-                                        // ダミー画像
-                                        Image(systemName: "photo")
-                                            .resizable()
-                                            .scaledToFit()
-                                            .frame(height: 100)
-                                            .foregroundColor(.gray)
-                                    }
-                                }
-                            }
-                            .padding()
-                        }
-
+                        PhotoCollectionViewRepresentable(viewModel: viewModel,
+                                                         onSelectPhoto: { photo in
+                            selectedPhoto = photo
+                        },
+                                                         onSelectMultiple: { photos in
+                            selectedPhotos = photos
+                        })
+                        
                         if let index = selectedIndex {
                             PhotoSliderView(
                                 photoController: photoController,
@@ -376,7 +325,7 @@ struct MainView: View {
 struct FloatingButtonPanel: View {
     @ObservedObject var photoController: PhotoController
     @ObservedObject var folderController: FolderController
-    @Binding var selectedPhotos: Set<Int>
+    @Binding var selectedPhotos: [Photo]
     @Binding var showPicker: Bool
     @Binding var showSearch: Bool
     @Binding var showFolderSheet: Bool

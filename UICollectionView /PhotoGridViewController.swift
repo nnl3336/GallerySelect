@@ -13,7 +13,7 @@ import Photos
 class PhotoGridViewController: UIViewController, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout {
     
     var photos: [Photo] = [] // Core Data などから取得
-    private var collectionView: UICollectionView!
+    var collectionView: UICollectionView!
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -73,5 +73,20 @@ class PhotoGridViewController: UIViewController, UICollectionViewDataSource, UIC
             photos.remove(at: index)
             collectionView.deleteItems(at: [IndexPath(item: index, section: 0)])
         }
+    }
+}
+
+struct PhotoGridView: UIViewControllerRepresentable {
+    @Binding var photos: [Photo] // SwiftUI 側のデータバインディング
+
+    func makeUIViewController(context: Context) -> PhotoGridViewController {
+        let vc = PhotoGridViewController()
+        vc.photos = photos
+        return vc
+    }
+
+    func updateUIViewController(_ uiViewController: PhotoGridViewController, context: Context) {
+        uiViewController.photos = photos
+        uiViewController.collectionView.reloadData()
     }
 }

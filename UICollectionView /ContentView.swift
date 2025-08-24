@@ -210,44 +210,7 @@ struct MainView: View {
             VStack {
                 ScrollViewReader { proxy in
                     ZStack(alignment: .trailing) {
-                        ScrollView {
-                            LazyVGrid(columns: columns, spacing: 10) {
-                                ForEach(photos, id: \.objectID) { photo in
-                                    if let data = photo.imageData, let uiImage = UIImage(data: data) {
-                                        Image(uiImage: uiImage)
-                                            .resizable()
-                                            .scaledToFill()
-                                            .frame(height: 100)
-                                            .clipped()
-                                            .cornerRadius(8)
-                                            .contextMenu {
-                                                
-                                                Button {
-                                                    saveImageToCameraRoll(uiImage)
-                                                } label: {
-                                                    Label("保存", systemImage: "square.and.arrow.down")
-                                                }
-                                                
-                                                // 削除
-                                                Button(role: .destructive) {
-                                                    deletePhoto(photo)
-                                                } label: {
-                                                    Label("削除", systemImage: "trash")
-                                                }
-                                            }
-                                    } else {
-                                        // デバッグ用にダミー画像
-                                        Image(systemName: "photo")
-                                            .resizable()
-                                            .scaledToFit()
-                                            .frame(height: 100)
-                                            .foregroundColor(.gray)
-                                    }
-                                }
-                            }
-                            .padding()
-                        }
-                        
+                        PhotoGridView(photos: <#Binding<[Photo]>#>)
                         // フローティングボタン
                         FloatingButtonPanel(
                             selectedPhotos: $selectedPhotos,

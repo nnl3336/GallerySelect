@@ -15,8 +15,11 @@ struct PhotoDetailPager: View {
 
     @State private var dragOffset: CGSize = .zero
 
+    @ObservedObject var photoFRCController: PhotoFRCController
+
     var body: some View {
         ZStack(alignment: .topTrailing) {
+            // ✅ 横スワイプでページング
             TabView(selection: $selectedIndex) {
                 ForEach(photos.indices, id: \.self) { index in
                     if let data = photos[index].imageData,
@@ -25,25 +28,26 @@ struct PhotoDetailPager: View {
                             .resizable()
                             .scaledToFit()
                             .tag(index)
-                            .background(Color.black)
                             .ignoresSafeArea()
-                            .offset(dragOffset) // ← X,Y 両方向に追従
+                            // 下スワイプで移動 & 縮小
+                            .offset(dragOffset)
                             .scaleEffect(scaleForDrag(dragOffset))
                             .highPriorityGesture(
                                 DragGesture()
                                     .onChanged { value in
-                                        dragOffset = value.translation
+                                        // 縦方向が強いときだけ閉じる動作
+                                        if abs(value.translation.height) > abs(value.translation.width) {
+                                            dragOffset = value.translation
+                                        }
                                     }
                                     .onEnded { value in
-                                        let distance = hypot(value.translation.width,
-                                                             value.translation.height)
-                                        let predicted = hypot(value.predictedEndTranslation.width,
-                                                              value.predictedEndTranslation.height)
-                                        if distance > 150 || predicted > 250 {
-                                            // 一定以上動かしたら閉じる
-                                            onClose?()
+                                        if abs(value.translation.height) > abs(value.translation.width) {
+                                            if value.translation.height > 150 ||
+                                               value.predictedEndTranslation.height > 250 {
+                                                onClose?()
+                                            }
+                                            dragOffset = .zero
                                         }
-                                        dragOffset = .zero
                                     }
                             )
                             .animation(.spring(), value: dragOffset)

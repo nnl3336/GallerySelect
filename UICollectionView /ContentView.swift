@@ -232,8 +232,6 @@ struct MainView: View {
             VStack {
                 ScrollViewReader { proxy in
                     ZStack(alignment: .bottomTrailing) {
-                        TabView {
-                            ForEach(viewModel.photos.indices, id: \.self) { index in
                                 PhotoCollectionViewRepresentable(
                                     viewModel: viewModel,
                                     onSelectPhoto: { photo in
@@ -243,9 +241,8 @@ struct MainView: View {
                                         selectedPhotos = photos
                                     }
                                 )
-                            }
-                        }
-                        .tabViewStyle(.page(indexDisplayMode: .automatic))
+                            
+                        
 
                         
                         if let index = selectedIndex {

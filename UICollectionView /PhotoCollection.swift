@@ -100,7 +100,8 @@ class PhotoCollectionViewController: UIViewController,
                 ),
                 onClose: { [weak self] in
                     self?.dismiss(animated: true, completion: nil)
-                }
+                },
+                photoFRCController: viewModel
             )
         )
         hosting.modalPresentationStyle = .fullScreen

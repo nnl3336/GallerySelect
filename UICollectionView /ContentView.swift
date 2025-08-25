@@ -242,9 +242,7 @@ struct MainView: View {
                                 isSelectionMode = !photos.isEmpty // ←ここで選択モード状態も更新
                             }
                         )
-                            
                         
-
                         
                         if let index = selectedIndex {
                             PhotoSliderView(

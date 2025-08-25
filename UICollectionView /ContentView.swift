@@ -248,7 +248,7 @@ struct MainView: View {
                                     }
                             }
                         }
-                    }
+                    } 
                 }
                 
                 if selectedIndex == nil {

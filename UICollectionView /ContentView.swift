@@ -195,16 +195,16 @@ struct MainView: View {
     @State private var showFolderSheet = false
     @State private var showAlbum = false
     @State private var segmentSelection = 2
-    
+
     let segments = ["後ろの月", "前の月", "すべての写真"]
     let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
     
     // Core Data から直接フェッチ
     /*@FetchRequest(
-     entity: Photo.entity(),
-     sortDescriptors: [NSSortDescriptor(keyPath: \Photo.creationDate, ascending: false)]
-     ) private var photos: FetchedResults<Photo>*/
-    
+        entity: Photo.entity(),
+        sortDescriptors: [NSSortDescriptor(keyPath: \Photo.creationDate, ascending: false)]
+    ) private var photos: FetchedResults<Photo>*/
+
     var filteredPhotos: [Photo] {
         switch segmentSelection {
         case 0:
@@ -226,31 +226,46 @@ struct MainView: View {
     @State private var selectedPhoto: Photo?
     @State private var selectedPhotos: [Photo] = []
     @State private var isSelectionMode = false
-    
+
     var body: some View {
-        ZStack {
+        NavigationView {
             VStack {
-                ScrollView {
-                    LazyVGrid(columns: columns, spacing: 10) {
-                        ForEach(viewModel.photos, id: \.objectID) { photo in
-                            if let data = photo.imageData,
-                               let uiImage = UIImage(data: data) {
-                                Image(uiImage: uiImage)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(height: 100)
-                                    .clipped()
-                                    .cornerRadius(8)
-                                    .onTapGesture {
-                                        if let idx = filteredPhotos.firstIndex(of: photo) {
-                                            selectedIndex = idx
-                                        }
-                                    }
+                ScrollViewReader { proxy in
+                    ZStack(alignment: .bottomTrailing) {
+                        PhotoCollectionViewRepresentable(
+                            viewModel: viewModel,
+                            onSelectPhoto: { photo in
+                                selectedPhoto = photo
+                            },
+                            onSelectMultiple: { photos in
+                                selectedPhotos = photos
+                                isSelectionMode = !photos.isEmpty // ←ここで選択モード状態も更新
                             }
+                        )
+                        
+                        if let index = selectedIndex {
+                            PhotoSliderView(
+                                photoController: photoController,
+                                folderController: folderController,
+                                photos: filteredPhotos,     // ← filteredPhotos を渡す
+                                selectedIndex: index,
+                                onClose: { selectedIndex = nil }
+                            )
+                            .zIndex(1)
                         }
-                    } 
+
+
+                        FloatingButtonPanel(
+                            photoController: photoController,
+                            folderController: folderController,
+                            selectedPhotos: $selectedPhotos,
+                            showPicker: $showPicker,
+                            showSearch: $showSearch,
+                            showFolderSheet: $showFolderSheet
+                        )
+                    }
                 }
-                
+
                 if selectedIndex == nil {
                     Picker("", selection: $segmentSelection) {
                         ForEach(0..<segments.count, id: \.self) { i in
@@ -261,36 +276,14 @@ struct MainView: View {
                     .padding()
                 }
             }
-            
-            // オーバーレイ表示
-            if let index = selectedIndex {
-                PhotoSliderView(
-                    photoController: photoController,
-                    folderController: folderController,
-                    photos: filteredPhotos,
-                    selectedIndex: index,
-                    onClose: { selectedIndex = nil }
-                )
-                .zIndex(1)
-            }
-            
-            // 常に下に出すフローティングボタン
-            FloatingButtonPanel(
-                photoController: photoController,
-                folderController: folderController,
-                selectedPhotos: $selectedPhotos,
-                showPicker: $showPicker,
-                showSearch: $showSearch,
-                showFolderSheet: $showFolderSheet
-            )
-        }
-        .navigationTitle("写真")
-        .toolbar {
-            ToolbarItemGroup(placement: .bottomBar) {
-                Spacer()
-                if isSelectionMode {
-                    Button("Cancel") {
-                        selectedPhotos.removeAll()
+            .navigationTitle("写真")
+            .toolbar {
+                ToolbarItemGroup(placement: .bottomBar) {
+                    Spacer()
+                    if isSelectionMode {
+                        Button("Cancel") {
+                            selectedPhotos.removeAll()
+                        }
                     }
                 }
             }
@@ -303,25 +296,26 @@ struct MainView: View {
                 }
             }
         }
-        /*.sheet(isPresented: $showFolderSheet) {
-            FolderSelectView(  // ← FloatingButtonPanel の代わりに専用ビュー
+        .sheet(isPresented: $showFolderSheet) {
+            FloatingButtonPanel(
                 photoController: photoController,
                 folderController: folderController,
-                selectedPhotos: $selectedPhotos
+                selectedPhotos: $selectedPhotos,
+                showPicker: $showPicker,
+                showSearch: $showSearch,
+                showFolderSheet: $showFolderSheet
             )
-        }*/
+        }
         .fullScreenCover(isPresented: $showSearch) {
             SearchView(
                 photoController: photoController,
                 folderController: folderController,
-                isPresented: $showSearch
-            )
+                isPresented: $showSearch)
         }
         .fullScreenCover(isPresented: $showAlbum) {
             FolderListView(
                 photoController: photoController,
-                folderController: folderController
-            )
+                folderController: folderController)
         }
     }
 }

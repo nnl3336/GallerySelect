@@ -246,7 +246,7 @@ struct MainView: View {
                                             selectedIndex = idx
                                         }
                                     }
-                            }
+                            } 
                         }
                     }
                 }

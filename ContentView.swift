@@ -131,35 +131,28 @@ import UIKit
 import PhotosUI
 import CoreData
 
-class PhotoGalleryViewController: UIViewController,
-                                  UICollectionViewDataSource,
-                                  UICollectionViewDelegate,
-                                  NSFetchedResultsControllerDelegate,
-                                  PHPickerViewControllerDelegate {
+enum Section {
+    case main
+}
+
+class PhotoGalleryViewController: UIViewController, UICollectionViewDelegate, PHPickerViewControllerDelegate {
 
     var context: NSManagedObjectContext!
     var collectionView: UICollectionView!
-    var fetchedResultsController: NSFetchedResultsController<Photo>!
-
+    
+    // DiffableDataSource
+    var dataSource: UICollectionViewDiffableDataSource<Section, NSManagedObjectID>!
+    
     override func viewDidLoad() {
         super.viewDidLoad()
-
+        
         context = PersistenceController.shared.container.viewContext
         setupNavigationBar()
         setupCollectionView()
-        setupFetchedResultsController()
-
-        try? fetchedResultsController.performFetch()
+        setupDataSource()
+        loadPhotos()
     }
-
-    // MARK: - Navigation Bar
-    func setupNavigationBar() {
-        title = "Photos"
-        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .add,
-                                                            target: self,
-                                                            action: #selector(addPhotoTapped))
-    }
-
+    
     @objc func addPhotoTapped() {
         var config = PHPickerConfiguration()
         config.selectionLimit = 1
@@ -169,43 +162,24 @@ class PhotoGalleryViewController: UIViewController,
         picker.delegate = self
         present(picker, animated: true)
     }
-
-    // MARK: - PHPicker Delegate
-    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-        picker.dismiss(animated: true)
-        guard let result = results.first else { return }
-
-        result.itemProvider.loadObject(ofClass: UIImage.self) { [weak self] reading, error in
-            guard let self = self else { return }
-            if let image = reading as? UIImage {
-                DispatchQueue.main.async {
-                    let newPhoto = Photo(context: self.context)
-                    newPhoto.id = UUID()
-                    newPhoto.creationDate = Date()
-                    newPhoto.imageData = image.jpegData(compressionQuality: 0.8)
-                    try? self.context.save()
-                }
-            }
-        }
+    
+    // MARK: - Navigation Bar
+    func setupNavigationBar() {
+        title = "Photos"
+        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .add,
+                                                            target: self,
+                                                            action: #selector(addPhotoTapped))
     }
 
-    // MARK: - CollectionView
     func setupCollectionView() {
-        let layout = UICollectionViewFlowLayout()
-        layout.itemSize = CGSize(width: 100, height: 100)
-        layout.minimumLineSpacing = 10
-        layout.minimumInteritemSpacing = 10
-
-        collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
+        // CompositionalLayout を使用
+        collectionView = UICollectionView(frame: .zero, collectionViewLayout: createLayout())
         collectionView.translatesAutoresizingMaskIntoConstraints = false
         collectionView.backgroundColor = .systemBackground
-        collectionView.dataSource = self
         collectionView.delegate = self
-
         collectionView.register(PhotoCell.self, forCellWithReuseIdentifier: "PhotoCell")
-
         view.addSubview(collectionView)
-
+        
         NSLayoutConstraint.activate([
             collectionView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             collectionView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
@@ -213,66 +187,68 @@ class PhotoGalleryViewController: UIViewController,
             collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
         ])
     }
-
-    func setupFetchedResultsController() {
-        let request: NSFetchRequest<Photo> = Photo.fetchRequest()
-        request.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
-
-        fetchedResultsController = NSFetchedResultsController(
-            fetchRequest: request,
-            managedObjectContext: context,
-            sectionNameKeyPath: nil,
-            cacheName: nil
-        )
-        fetchedResultsController.delegate = self
+    
+    func createLayout() -> UICollectionViewLayout {
+        // CompositionalLayout のサンプル
+        let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(0.3),
+                                              heightDimension: .fractionalWidth(0.3))
+        let item = NSCollectionLayoutItem(layoutSize: itemSize)
+        item.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 5, bottom: 5, trailing: 5)
+        
+        let groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1.0),
+                                               heightDimension: .fractionalWidth(0.3))
+        let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupSize, subitems: [item])
+        
+        let section = NSCollectionLayoutSection(group: group)
+        return UICollectionViewCompositionalLayout(section: section)
     }
 
-    // MARK: - CollectionView DataSource
-    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-        return fetchedResultsController.fetchedObjects?.count ?? 0
-    }
-
-    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
-        let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PhotoCell", for: indexPath) as! PhotoCell
-        let photo = fetchedResultsController.object(at: indexPath)
-        if let data = photo.imageData {
-            cell.imageView.image = UIImage(data: data)
-        }
-        return cell
-    }
-
-    // MARK: - FRC Delegate
-    func controller(_ controller: NSFetchedResultsController<NSFetchRequestResult>,
-                    didChange anObject: Any,
-                    at indexPath: IndexPath?,
-                    for type: NSFetchedResultsChangeType,
-                    newIndexPath: IndexPath?) {
-        switch type {
-        case .insert:
-            if let newIndexPath = newIndexPath {
-                collectionView.insertItems(at: [newIndexPath])
+    func setupDataSource() {
+        dataSource = UICollectionViewDiffableDataSource<Section, NSManagedObjectID>(collectionView: collectionView) {
+            (collectionView, indexPath, objectID) -> UICollectionViewCell? in
+            let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PhotoCell", for: indexPath) as! PhotoCell
+            if let photo = try? self.context.existingObject(with: objectID) as? Photo,
+               let data = photo.imageData {
+                cell.imageView.image = UIImage(data: data)
             }
-        case .delete:
-            if let indexPath = indexPath {
-                collectionView.deleteItems(at: [indexPath])
-            }
-        case .update:
-            if let indexPath = indexPath {
-                collectionView.reloadItems(at: [indexPath])
-            }
-        case .move:
-            if let indexPath = indexPath, let newIndexPath = newIndexPath {
-                collectionView.moveItem(at: indexPath, to: newIndexPath)
-            }
-        @unknown default:
-            break
+            return cell
         }
     }
-
-    func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
-        collectionView.reloadData()
+    
+    func loadPhotos() {
+        let fetchRequest: NSFetchRequest<Photo> = Photo.fetchRequest()
+        fetchRequest.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
+        let photos = try? context.fetch(fetchRequest)
+        
+        var snapshot = NSDiffableDataSourceSnapshot<Section, NSManagedObjectID>()
+        snapshot.appendSections([.main])
+        snapshot.appendItems(photos?.map { $0.objectID } ?? [])
+        dataSource.apply(snapshot, animatingDifferences: true)
+    }
+    
+    // PHPicker で追加後
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        picker.dismiss(animated: true)
+        guard let result = results.first else { return }
+        
+        result.itemProvider.loadObject(ofClass: UIImage.self) { [weak self] reading, error in
+            guard let self = self, let image = reading as? UIImage else { return }
+            DispatchQueue.main.async {
+                let newPhoto = Photo(context: self.context)
+                newPhoto.id = UUID()
+                newPhoto.creationDate = Date()
+                newPhoto.imageData = image.jpegData(compressionQuality: 0.8)
+                try? self.context.save()
+                
+                // snapshot に追加
+                var snapshot = self.dataSource.snapshot()
+                snapshot.appendItems([newPhoto.objectID], toSection: .main)
+                self.dataSource.apply(snapshot, animatingDifferences: true)
+            }
+        }
     }
 }
+
 
 //
 

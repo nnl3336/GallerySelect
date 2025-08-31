@@ -187,14 +187,16 @@ class PhotoGalleryViewController: UIViewController,
                         let newPhoto = Photo(context: self.context)
                         newPhoto.id = UUID()
                         newPhoto.creationDate = Date()
-                        // サムネイルと元画像は圧縮して保存
                         newPhoto.imageData = image.jpegData(compressionQuality: 0.5)
+
                         do {
                             try self.context.save()
+                            print("Photo saved! Total objects: \(self.fetchedResultsController.fetchedObjects?.count ?? 0)")
                         } catch {
-                            print("CoreData save error: \(error)")
+                            print("CoreData save error: \(error.localizedDescription)")
                         }
                     }
+
                 }
             }
         }

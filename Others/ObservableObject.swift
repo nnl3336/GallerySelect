@@ -142,28 +142,28 @@ class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDel
 
     /*private*/ let context: NSManagedObjectContext
     private let frc: NSFetchedResultsController<Photo>
-    
+        
     //***
 
     init(context: NSManagedObjectContext) {
-        self.context = context
-        
-        let request: NSFetchRequest<Photo> = Photo.fetchRequest()
-        request.sortDescriptors = [NSSortDescriptor(keyPath: \Photo.creationDate, ascending: true)]
-        request.fetchBatchSize = 20  // ← バッチで取得
-        
-        frc = NSFetchedResultsController(
-            fetchRequest: request,
-            managedObjectContext: context,
-            sectionNameKeyPath: nil,
-            cacheName: nil
-        )
-        
-        super.init()
-        frc.delegate = self
-        try? frc.performFetch()
-        photos = frc.fetchedObjects ?? []
-    }
+            self.context = context
+            
+            let request: NSFetchRequest<Photo> = Photo.fetchRequest()
+            request.sortDescriptors = [NSSortDescriptor(keyPath: \Photo.creationDate, ascending: true)]
+            request.fetchBatchSize = 20
+            
+            frc = NSFetchedResultsController(
+                fetchRequest: request,
+                managedObjectContext: context,
+                sectionNameKeyPath: nil,
+                cacheName: nil
+            )
+            
+            super.init()
+            frc.delegate = self
+            try? frc.performFetch()
+            photos = frc.fetchedObjects ?? []
+        }
     
     func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
         photos = frc.fetchedObjects ?? []

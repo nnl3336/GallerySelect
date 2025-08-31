@@ -7,6 +7,8 @@
 
 import SwiftUI
 
+/*
+
 struct FolderListView: View {
     @ObservedObject var photoController: PhotoController
     @ObservedObject var folderController: FolderController
@@ -104,4 +106,4 @@ extension Folder {
     }
 }
 
-
+*/

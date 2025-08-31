@@ -140,7 +140,7 @@ class FolderController: NSObject, ObservableObject {
 class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDelegate {
     @Published var photos: [Photo] = []
 
-    private let context: NSManagedObjectContext
+    /*private*/ let context: NSManagedObjectContext
     private let frc: NSFetchedResultsController<Photo>
     
     //***

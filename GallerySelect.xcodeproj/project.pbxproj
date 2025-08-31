@@ -111,14 +111,14 @@
 			isa = PBXGroup;
 			children = (
 				18F54CA12E50C2A400D337E5 /* GallerySelectApp.swift */,
+				18A62A1D2E50544900AFC31A /* GallerySelect.xcdatamodeld */,
 				188981262E4F301400D6539F /* ContentView.swift */,
-				18F54CAF2E51F24D00D337E5 /* Others */,
 				189D47B52E56CD34005FB6AF /* UICollectionView  */,
 				18A62A2D2E50552500AFC31A /* PhotoSliderView.swift */,
 				18F54CAD2E51F1ED00D337E5 /* SearchView.swift */,
 				18F54CB22E52E12F00D337E5 /* AlbumView.swift */,
 				1869D0CD2E53443A002C028F /* FolderSheetView.swift */,
-				18A62A1D2E50544900AFC31A /* GallerySelect.xcdatamodeld */,
+				18F54CAF2E51F24D00D337E5 /* Others */,
 				18F54CBA2E52E69400D337E5 /* - */,
 				1889811E2E4F301400D6539F /* GallerySelect */,
 				188981352E4F301600D6539F /* GallerySelectTests */,

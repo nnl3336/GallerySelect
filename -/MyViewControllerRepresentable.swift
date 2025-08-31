@@ -7,6 +7,12 @@
 
 import SwiftUI
 
+protocol PhotoCellDelegate: AnyObject {
+    func photoCellDidToggleSelection(_ cell: PhotoCell)
+    func photoCellDidSave(_ cell: PhotoCell)
+    func photoCellDidDelete(_ cell: PhotoCell)
+}
+
 class MyViewController: UIViewController, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout {
 
     var collectionView: UICollectionView!
@@ -70,7 +76,7 @@ class MyViewController: UIViewController, UICollectionViewDataSource, UICollecti
         }
 
         let photo = photos[indexPath.item]
-        cell.configure(with: photo, selected: selectedPhotos.contains(indexPath.item))
+        cell.configure(with: photo)
         cell.delegate = self  // ← 成功した場合に設定
         return cell
     }
@@ -100,7 +106,8 @@ extension MyViewController: PhotoCellDelegate {
            selectedPhotosBinding?.wrappedValue = selectedPhotos
 
            if let cell = collectionView.cellForItem(at: indexPath) as? PhotoCell {
-               cell.configure(with: photos[indexPath.item], selected: selectedPhotos.contains(indexPath.item))
+               cell.configure(with: photos[indexPath.item]/*,
+                              selected: selectedPhotos.contains(indexPath.item)*/)
            }
        }
 
@@ -121,7 +128,8 @@ extension MyViewController {
 
             // 選択状態の更新
             if let cell = collectionView.cellForItem(at: indexPath) as? PhotoCell {
-                cell.configure(with: photos[indexPath.item], selected: selectedPhotos.contains(indexPath.item))
+                cell.configure(with: photos[indexPath.item]/*,
+                               selected: selectedPhotos.contains(indexPath.item)*/)
             }
 
         } else {
@@ -200,3 +208,5 @@ struct MyViewControllerRepresentable: UIViewControllerRepresentable {
 }
 
 //
+
+

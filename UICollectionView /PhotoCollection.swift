@@ -218,18 +218,3 @@ class PhotoCollectionViewCell: UICollectionViewCell {
 }
 
 // MARK: - SwiftUI Wrapper
-struct PhotoCollectionViewRepresentable: UIViewControllerRepresentable {
-    @ObservedObject var viewModel: PhotoFRCController
-    var onSelectPhoto: ((Photo) -> Void)?
-    var onSelectMultiple: (([Photo]) -> Void)?
-
-    func makeUIViewController(context: Context) -> PhotoCollectionViewController {
-        let vc = PhotoCollectionViewController()
-        vc.viewModel = viewModel
-        vc.onSelectPhoto = onSelectPhoto
-        vc.onSelectMultiple = onSelectMultiple
-        return vc
-    }
-
-    func updateUIViewController(_ uiViewController: PhotoCollectionViewController, context: Context) {}
-}

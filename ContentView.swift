@@ -8,42 +8,17 @@
 import SwiftUI
 import PhotosUI
 import CoreData
-
-import SwiftUI
-import PhotosUI
-import CoreData
-
-import SwiftUI
-import Photos
+import Combine
 
 // MARK: - SwiftUI ContentView
 struct ContentView: View {
-    @Environment(\.managedObjectContext) private var viewContext
-    
-    @ObservedObject var photoController: PhotoController
-    @ObservedObject var folderController: FolderController
-    @State private var currentScreen: AppScreen = .photos
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            Group {
-                switch currentScreen {
-                case .photos:
-                    MainView(
-                        photoController: photoController,
-                        folderController: folderController
-                    )
-                case .albums:
-                    FolderListView(
-                        photoController: photoController,
-                        folderController: folderController
-                    )
-                }
-            }
-            .transition(.opacity)
-        }
+        PhotoCollectionViewRepresentable()
+        .edgesIgnoringSafeArea(.all)
     }
 }
+
 
 
 // MARK: - FRCラッパークラス
@@ -145,242 +120,130 @@ struct ContentView: View {
 }*/
 
 
-extension ContentView {
-    
-    func deletePhoto(at index: Int) {
-        let photo = photoController.photos[index]  // ← controller.photos に変更
-        viewContext.delete(photo)
-        
-        do {
-            try viewContext.save()
-        } catch {
-            print("削除エラー: \(error)")
-        }
-    }
-    
-    func saveImageToCameraRoll(_ image: UIImage, creationDate: Date? = nil) {
-        PHPhotoLibrary.requestAuthorization { status in
-            guard status == .authorized || status == .limited else {
-                print("権限なし")
-                return
-            }
 
-            PHPhotoLibrary.shared().performChanges({
-                let request = PHAssetChangeRequest.creationRequestForAsset(from: image)
-                if let date = creationDate {
-                    request.creationDate = date
-                }
-            }) { success, error in
-                DispatchQueue.main.async { // UI 更新は main thread
-                    if success {
-                        print("保存成功")
-                    } else {
-                        print("保存失敗: \(error?.localizedDescription ?? "")")
-                    }
-                }
-            }
+class PhotoGalleryViewController: UIViewController {
+
+    var photoController: PhotoController
+    var folderController: FolderController
+
+    private var collectionView: UICollectionView!
+    private var cancellables = Set<AnyCancellable>()
+
+    private var selectedPhotos: [Photo] = []
+    private var isSelectionMode: Bool { !selectedPhotos.isEmpty }
+    
+    private let context: NSManagedObjectContext
+
+        // ここを追加
+        var viewContext: NSManagedObjectContext { context }
+
+    // MARK: - 初期化
+        init(photoController: PhotoController, folderController: FolderController, context: NSManagedObjectContext) {
+            self.photoController = photoController
+            self.folderController = folderController
+            self.context = context   // ← super.init の前に初期化
+            super.init(nibName: nil, bundle: nil)
         }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .systemBackground
+        setupCollectionView()
+        setupNavigationBar()
+        observePhotos()
+    }
+
+    // MARK: - CollectionView
+    private func setupCollectionView() {
+        let layout = UICollectionViewFlowLayout()
+        layout.minimumLineSpacing = 2
+        layout.minimumInteritemSpacing = 2
+        layout.itemSize = CGSize(width: 100, height: 100)
+
+        collectionView = UICollectionView(frame: view.bounds, collectionViewLayout: layout)
+        collectionView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        collectionView.delegate = self
+        collectionView.dataSource = self
+        collectionView.register(PhotoCell.self, forCellWithReuseIdentifier: "PhotoCell")
+        view.addSubview(collectionView)
+    }
+
+    // MARK: - NavigationBar / Toolbar
+    private func setupNavigationBar() {
+        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .add,
+                                                            target: self,
+                                                            action: #selector(addPhotos))
+    }
+
+    // MARK: - PhotoController Changes
+    private func observePhotos() {
+        photoController.$photos
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.collectionView.reloadData()
+            }
+            .store(in: &cancellables)
+    }
+
+    // MARK: - Actions
+    @objc private func addPhotos() {
+        var config = PHPickerConfiguration()
+        config.selectionLimit = 0
+        config.filter = .images
+
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = self
+        present(picker, animated: true)
+    }
+
+    private func deleteSelectedPhotos() {
+        for photo in selectedPhotos {
+            photoController.context.delete(photo)
+        }
+        try? photoController.context.save()
+        selectedPhotos.removeAll()
+        collectionView.reloadData()
     }
 }
 
-// MARK: - SwiftUI MainView
-struct MainView: View {
-    @Environment(\.managedObjectContext) private var viewContext
-    @ObservedObject var photoController: PhotoController
-    @ObservedObject var folderController: FolderController
-    @State private var selectedIndex: Int? = nil
-    //@State private var selectedPhotos = Set<Int>()
-    @State private var showPicker = false
-    @State private var showSearch = false
-    @State private var showFolderSheet = false
-    @State private var showAlbum = false
-    @State private var segmentSelection = 2
-
-    let segments = ["後ろの月", "前の月", "すべての写真"]
-    let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
-    
-    // Core Data から直接フェッチ
-    /*@FetchRequest(
-        entity: Photo.entity(),
-        sortDescriptors: [NSSortDescriptor(keyPath: \Photo.creationDate, ascending: false)]
-    ) private var photos: FetchedResults<Photo>*/
-
-    var filteredPhotos: [Photo] {
-        switch segmentSelection {
-        case 0:
-            return photoController.photos.filter { photo in
-                guard let date = photo.creationDate else { return false }
-                return Calendar.current.isDate(date, equalTo: Date().addingTimeInterval(30*24*60*60), toGranularity: .month)
-            }
-        case 1:
-            return photoController.photos.filter { photo in
-                guard let date = photo.creationDate else { return false }
-                return Calendar.current.isDate(date, equalTo: Date().addingTimeInterval(-30*24*60*60), toGranularity: .month)
-            }
-        default:
-            return photoController.photos
-        }
+// MARK: - UICollectionView
+extension PhotoGalleryViewController: UICollectionViewDataSource, UICollectionViewDelegate {
+    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+        photoController.photos.count
     }
-    
-    @StateObject var viewModel = PhotoFRCController(context: PersistenceController.shared.container.viewContext)
-    @State private var selectedPhoto: Photo?
-    @State private var selectedPhotos: [Photo] = []
-    @State private var isSelectionMode = false
 
-    var body: some View {
-        NavigationView {
-            VStack {
-                ScrollViewReader { proxy in
-                    ZStack(alignment: .bottomTrailing) {
-                        PhotoCollectionViewRepresentable(
-                            viewModel: viewModel,
-                            onSelectPhoto: { photo in
-                                selectedPhoto = photo
-                            },
-                            onSelectMultiple: { photos in
-                                selectedPhotos = photos
-                                isSelectionMode = !photos.isEmpty // ←ここで選択モード状態も更新
-                            }
-                        )
-                        
-                        if let index = selectedIndex {
-                            PhotoSliderView(
-                                photoController: photoController,
-                                folderController: folderController,
-                                photos: filteredPhotos,     // ← filteredPhotos を渡す
-                                selectedIndex: index,
-                                onClose: { selectedIndex = nil }
-                            )
-                            .zIndex(1)
-                        }
+    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+        let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PhotoCell", for: indexPath) as! PhotoCell
+        let photo = photoController.photos[indexPath.item]
+        cell.configure(with: photo)
+        return cell
+    }
 
-
-                        FloatingButtonPanel(
-                            photoController: photoController,
-                            folderController: folderController,
-                            selectedPhotos: $selectedPhotos,
-                            showPicker: $showPicker,
-                            showSearch: $showSearch,
-                            showFolderSheet: $showFolderSheet
-                        )
-                    }
-                }
-
-                if selectedIndex == nil {
-                    Picker("", selection: $segmentSelection) {
-                        ForEach(0..<segments.count, id: \.self) { i in
-                            Text(segments[i])
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .padding()
-                }
-            }
-            .navigationTitle("写真")
-            .toolbar {
-                ToolbarItemGroup(placement: .bottomBar) {
-                    Spacer()
-                    if isSelectionMode {
-                        Button("Cancel") {
-                            selectedPhotos.removeAll()
-                        }
-                    }
-                }
-            }
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        let photo = photoController.photos[indexPath.item]
+        if selectedPhotos.contains(photo) {
+            selectedPhotos.removeAll { $0 == photo }
+        } else {
+            selectedPhotos.append(photo)
         }
-        .sheet(isPresented: $showPicker) {
-            PhotoPicker { images, assets in
-                for (i, image) in images.enumerated() {
-                    let creationDate = (i < assets.count) ? assets[i].creationDate ?? Date() : Date()
-                    photoController.addPhoto(image, creationDate: creationDate)
-                }
-            }
-        }
-        .sheet(isPresented: $showFolderSheet) {
-            FloatingButtonPanel(
-                photoController: photoController,
-                folderController: folderController,
-                selectedPhotos: $selectedPhotos,
-                showPicker: $showPicker,
-                showSearch: $showSearch,
-                showFolderSheet: $showFolderSheet
-            )
-        }
-        .fullScreenCover(isPresented: $showSearch) {
-            SearchView(
-                photoController: photoController,
-                folderController: folderController,
-                isPresented: $showSearch)
-        }
-        .fullScreenCover(isPresented: $showAlbum) {
-            FolderListView(
-                photoController: photoController,
-                folderController: folderController)
-        }
+        collectionView.reloadItems(at: [indexPath])
     }
 }
 
-
-
-
-
-
-struct FloatingButtonPanel: View {
-    @ObservedObject var photoController: PhotoController
-    @ObservedObject var folderController: FolderController
-    @Binding var selectedPhotos: [Photo]
-    @Binding var showPicker: Bool
-    @Binding var showSearch: Bool
-    @Binding var showFolderSheet: Bool
-
-    var body: some View {
-        VStack { Spacer()
-            HStack {
-                NavigationLink(destination: FolderListView(
-                    photoController: photoController,
-                    folderController: folderController
-                )) {
-                    Image(systemName: "photo.on.rectangle")
-                        .floatingStyle(color: .blue)
+// MARK: - PHPicker
+extension PhotoGalleryViewController: PHPickerViewControllerDelegate {
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        picker.dismiss(animated: true)
+        for result in results {
+            if result.itemProvider.canLoadObject(ofClass: UIImage.self) {
+                result.itemProvider.loadObject(ofClass: UIImage.self) { [weak self] object, error in
+                    guard let self = self, let image = object as? UIImage else { return }
+                    DispatchQueue.main.async {
+                        self.photoController.addPhoto(image)
+                    }
                 }
-                Button { if !selectedPhotos.isEmpty { showFolderSheet = true } } label: {
-                    Image(systemName: "folder.badge.plus")
-                        .floatingStyle(color: .purple)
-                }
-                Spacer()
-                Button { showSearch = true } label: {
-                    Image(systemName: "magnifyingglass")
-                        .floatingStyle(color: .green)
-                }
-                Button { showPicker = true } label: {
-                    Image(systemName: "plus")
-                        .floatingStyle(color: .orange)
-                }
-            }
-            .padding(.bottom, 30)
-        }
-    }
-}
-
-//
-
-
-struct PhotoContextMenu: View {
-    var photo: Photo
-    var isSelected: Bool
-    var toggleSelection: (Bool) -> Void
-    var deleteAction: () -> Void
-
-    var body: some View {
-        VStack {
-            Button(action: { toggleSelection(!isSelected) }) {
-                Label(isSelected ? "選択解除" : "選択", systemImage: isSelected ? "circle" : "checkmark.circle")
-            }
-            Button { UIImageWriteToSavedPhotosAlbum(UIImage(data: photo.imageData ?? Data())!, nil, nil, nil) } label: {
-                Label("保存", systemImage: "square.and.arrow.down")
-            }
-            Button(action: deleteAction) {
-                Label("削除", systemImage: "trash")
             }
         }
     }
@@ -388,176 +251,46 @@ struct PhotoContextMenu: View {
 
 //
 
-extension UIImage {
-    /// 長辺を targetLength に合わせて縮小
-    func resizedMaintainingAspect(to targetLength: CGFloat) -> UIImage? {
-        let maxSide = max(size.width, size.height)
-        let scale = targetLength / maxSide
-        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
-
-        let renderer = UIGraphicsImageRenderer(size: newSize)
-        return renderer.image { _ in
-            self.draw(in: CGRect(origin: .zero, size: newSize))
-        }
+struct PhotoCollectionViewRepresentable: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> MyViewController {
+        let vc = MyViewController()
+        // 必要なら photos や delegate をセット
+        return vc
     }
 
-    /// サムネイル用JPEGデータ
-    func jpegThumbnailData(maxLength: CGFloat = 200, compression: CGFloat = 0.7) -> Data? {
-        return self.resizedMaintainingAspect(to: maxLength)?
-            .jpegData(compressionQuality: compression)
+    func updateUIViewController(_ uiViewController: MyViewController, context: Context) {
+        // データ更新時の処理
+        uiViewController.collectionView.reloadData()
     }
 }
 
 
-extension UIImage {
-    func resized(to targetSize: CGSize) -> UIImage? {
-        let renderer = UIGraphicsImageRenderer(size: targetSize)
-        return renderer.image { _ in
-            self.draw(in: CGRect(origin: .zero, size: targetSize))
-        }
+// MARK: - PhotoCell
+class PhotoCell: UICollectionViewCell {
+    static let reuseIdentifier = "PhotoCell"  // ← ここを static に
+    weak var delegate: PhotoCellDelegate?
+    
+    private let imageView = UIImageView()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        contentView.addSubview(imageView)
+        imageView.frame = contentView.bounds
+        imageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        imageView.contentMode = .scaleAspectFill
+        imageView.clipsToBounds = true
     }
 
-    func jpegData(resizedTo targetSize: CGSize, compression: CGFloat = 0.7) -> Data? {
-        return self.resized(to: targetSize)?.jpegData(compressionQuality: compression)
+    required init?(coder: NSCoder) { fatalError() }
+
+    func configure(with photo: Photo) {
+        imageView.image = photo.thumbnailImage ?? UIImage(systemName: "photo")
     }
 }
 
 extension Photo {
-    var thumbnail: UIImage? {
-        guard let data = imageData else { return nil }
-        return UIImage(data: data)?.resize(to: CGSize(width: 150, height: 150))
-    }
-}
-
-extension UIImage {
-    func resize(to size: CGSize) -> UIImage {
-        let renderer = UIGraphicsImageRenderer(size: size)
-        return renderer.image { _ in
-            self.draw(in: CGRect(origin: .zero, size: size))
-        }
-    }
-}
-
-extension View {
-    func floatingStyle(color: Color) -> some View {
-        self.font(.title)
-            .padding()
-            .background(color.opacity(0.8))
-            .foregroundColor(.white)
-            .clipShape(Circle())
-            .shadow(radius: 4)
-            .padding(.horizontal, 20)
-    }
-}
-
-
-//
-
-
-// MARK: - PhotoPicker
-
-struct PhotoPicker: UIViewControllerRepresentable {
-    @Environment(\.managedObjectContext) private var viewContext   // ← ここで参照
-
-    // completion に UIImage と PHAsset を渡す
-    var completion: (_ images: [UIImage], _ assets: [PHAsset]) -> Void
-    
-    func makeUIViewController(context: Context) -> PHPickerViewController {
-        var config = PHPickerConfiguration()
-        config.selectionLimit = 0 // 複数選択
-        
-        // 画像と動画の両方を選択可能
-        config.filter = PHPickerFilter.any(of: [.images, .videos])
-        
-        let picker = PHPickerViewController(configuration: config)
-        picker.delegate = context.coordinator
-        return picker
-    }
-
-    
-    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
-    
-    func makeCoordinator() -> Coordinator {
-            Coordinator(self, viewContext: viewContext)   // ← 渡す
-        }
-    
-    class Coordinator: NSObject, PHPickerViewControllerDelegate {
-            var parent: PhotoPicker
-            var viewContext: NSManagedObjectContext   // ← ここで保持
-            
-            init(_ parent: PhotoPicker, viewContext: NSManagedObjectContext) {
-                self.parent = parent
-                self.viewContext = viewContext
-            }
-        
-        //***
-
-        func saveToCameraRoll(imageData: Data, creationDate: Date?) {
-            PHPhotoLibrary.shared().performChanges {
-                let request = PHAssetCreationRequest.forAsset()
-                let options = PHAssetResourceCreationOptions()
-                request.addResource(with: .photo, data: imageData, options: options)
-                if let creationDate {
-                    request.creationDate = creationDate   // ← ここでAppleの撮影日をセット
-                }
-            } completionHandler: { success, error in
-                if success {
-                    print("保存できました！")
-                } else {
-                    print("エラー: \(error?.localizedDescription ?? "不明")")
-                }
-            }
-        }
-
-        
-        func didPickPhotos(images: [UIImage], assets: [PHAsset]) {
-            for (index, image) in images.enumerated() {
-                let asset = assets.indices.contains(index) ? assets[index] : nil
-                let captureDate = asset?.creationDate ?? Date()
-
-                let newPhoto = Photo(context: viewContext)
-                
-                // フル解像度
-                newPhoto.imageData = image.jpegData(compressionQuality: 0.9)
-                
-                // サムネイル（縦横比維持・長辺200）
-                newPhoto.thumbnailData = image.jpegThumbnailData(maxLength: 200)
-
-                newPhoto.currentDate = captureDate
-            }
-
-            try? viewContext.save()
-        }
-
-        
-        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-            picker.dismiss(animated: true)
-            var images: [UIImage] = []
-            var assets: [PHAsset] = []
-            
-            let group = DispatchGroup()
-            
-            for (index, result) in results.enumerated() {   // ← enumerated() で index 取得
-                // PHAsset を取得
-                if let assetId = result.assetIdentifier,
-                   let asset = PHAsset.fetchAssets(withLocalIdentifiers: [assetId], options: nil).firstObject {
-                    assets.append(asset)
-                    print("📸 index \(index): captureDate = \(String(describing: asset.creationDate))")  // ← ここでデバッグ
-                }
-                
-                if result.itemProvider.canLoadObject(ofClass: UIImage.self) {
-                    group.enter()
-                    result.itemProvider.loadObject(ofClass: UIImage.self) { object, error in
-                        if let image = object as? UIImage { images.append(image) }
-                        group.leave()
-                    }
-                }
-            }
-            
-            group.notify(queue: .main) {
-                self.parent.completion(images, assets)
-            }
-        }
-
+    var thumbnailImage: UIImage? {
+        guard let data = thumbnail else { return nil }
+        return UIImage(data: data)
     }
 }

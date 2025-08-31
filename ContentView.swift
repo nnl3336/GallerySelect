@@ -141,7 +141,7 @@ class PhotoGalleryViewController: UIViewController,
                                   NSFetchedResultsControllerDelegate,
                                   UICollectionViewDataSourcePrefetching, // Prefetch対応
                                   PHPickerViewControllerDelegate {
-
+ 
     var context: NSManagedObjectContext!
     var collectionView: UICollectionView!
     var fetchedResultsController: NSFetchedResultsController<Photo>!

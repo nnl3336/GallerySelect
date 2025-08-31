@@ -182,8 +182,12 @@ class PhotoGalleryViewController: UIViewController,
                     let newPhoto = Photo(context: self.context)
                     newPhoto.id = UUID()
                     newPhoto.creationDate = Date()
-                    newPhoto.imageData = image.jpegData(compressionQuality: 0.8)
-                    try? self.context.save()
+                    newPhoto.imageData = image.jpegData(compressionQuality: 0.5) // 軽量化
+                    do {
+                        try self.context.save()
+                    } catch {
+                        print("CoreData save error: \(error)")
+                    }
                 }
             }
         }
@@ -192,9 +196,12 @@ class PhotoGalleryViewController: UIViewController,
     // MARK: - CollectionView
     func setupCollectionView() {
         let layout = UICollectionViewFlowLayout()
-        layout.itemSize = CGSize(width: 100, height: 100)
-        layout.minimumLineSpacing = 10
-        layout.minimumInteritemSpacing = 10
+        let spacing: CGFloat = 10
+        let itemsPerRow: CGFloat = 3
+        let width = (view.frame.width - (itemsPerRow + 1) * spacing) / itemsPerRow
+        layout.itemSize = CGSize(width: width, height: width)
+        layout.minimumLineSpacing = spacing
+        layout.minimumInteritemSpacing = spacing
 
         collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         collectionView.translatesAutoresizingMaskIntoConstraints = false
@@ -237,6 +244,8 @@ class PhotoGalleryViewController: UIViewController,
         let photo = fetchedResultsController.object(at: indexPath)
         if let data = photo.imageData {
             cell.imageView.image = UIImage(data: data)
+        } else {
+            cell.imageView.image = nil
         }
         return cell
     }
@@ -247,6 +256,7 @@ class PhotoGalleryViewController: UIViewController,
                     at indexPath: IndexPath?,
                     for type: NSFetchedResultsChangeType,
                     newIndexPath: IndexPath?) {
+
         switch type {
         case .insert:
             if let newIndexPath = newIndexPath {
@@ -268,11 +278,8 @@ class PhotoGalleryViewController: UIViewController,
             break
         }
     }
-
-    func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
-        collectionView.reloadData()
-    }
 }
+
 
 //
 

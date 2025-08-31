@@ -131,24 +131,30 @@ import UIKit
 import PhotosUI
 import CoreData
 
+import UIKit
+import PhotosUI
+import CoreData
+
 class PhotoGalleryViewController: UIViewController,
                                   UICollectionViewDataSource,
                                   UICollectionViewDelegate,
                                   NSFetchedResultsControllerDelegate,
+                                  UICollectionViewDataSourcePrefetching, // Prefetch対応
                                   PHPickerViewControllerDelegate {
 
     var context: NSManagedObjectContext!
     var collectionView: UICollectionView!
     var fetchedResultsController: NSFetchedResultsController<Photo>!
+    
+    // サムネイルキャッシュ
+    var thumbnailCache: [NSManagedObjectID: UIImage] = [:]
 
     override func viewDidLoad() {
         super.viewDidLoad()
-
         context = PersistenceController.shared.container.viewContext
         setupNavigationBar()
         setupCollectionView()
         setupFetchedResultsController()
-
         try? fetchedResultsController.performFetch()
     }
 
@@ -162,7 +168,7 @@ class PhotoGalleryViewController: UIViewController,
 
     @objc func addPhotoTapped() {
         var config = PHPickerConfiguration()
-        config.selectionLimit = 1
+        config.selectionLimit = 0 // 複数選択可
         config.filter = .images
 
         let picker = PHPickerViewController(configuration: config)
@@ -173,20 +179,21 @@ class PhotoGalleryViewController: UIViewController,
     // MARK: - PHPicker Delegate
     func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
         picker.dismiss(animated: true)
-        guard let result = results.first else { return }
-
-        result.itemProvider.loadObject(ofClass: UIImage.self) { [weak self] reading, error in
-            guard let self = self else { return }
-            if let image = reading as? UIImage {
-                DispatchQueue.main.async {
-                    let newPhoto = Photo(context: self.context)
-                    newPhoto.id = UUID()
-                    newPhoto.creationDate = Date()
-                    newPhoto.imageData = image.jpegData(compressionQuality: 0.5) // 軽量化
-                    do {
-                        try self.context.save()
-                    } catch {
-                        print("CoreData save error: \(error)")
+        for result in results {
+            result.itemProvider.loadObject(ofClass: UIImage.self) { [weak self] reading, error in
+                guard let self = self else { return }
+                if let image = reading as? UIImage {
+                    DispatchQueue.main.async {
+                        let newPhoto = Photo(context: self.context)
+                        newPhoto.id = UUID()
+                        newPhoto.creationDate = Date()
+                        // サムネイルと元画像は圧縮して保存
+                        newPhoto.imageData = image.jpegData(compressionQuality: 0.5)
+                        do {
+                            try self.context.save()
+                        } catch {
+                            print("CoreData save error: \(error)")
+                        }
                     }
                 }
             }
@@ -196,7 +203,7 @@ class PhotoGalleryViewController: UIViewController,
     // MARK: - CollectionView
     func setupCollectionView() {
         let layout = UICollectionViewFlowLayout()
-        let spacing: CGFloat = 10
+        let spacing: CGFloat = 5
         let itemsPerRow: CGFloat = 3
         let width = (view.frame.width - (itemsPerRow + 1) * spacing) / itemsPerRow
         layout.itemSize = CGSize(width: width, height: width)
@@ -208,9 +215,9 @@ class PhotoGalleryViewController: UIViewController,
         collectionView.backgroundColor = .systemBackground
         collectionView.dataSource = self
         collectionView.delegate = self
+        collectionView.prefetchDataSource = self as any UICollectionViewDataSourcePrefetching // Swift 5.7+対応
 
         collectionView.register(PhotoCell.self, forCellWithReuseIdentifier: "PhotoCell")
-
         view.addSubview(collectionView)
 
         NSLayoutConstraint.activate([
@@ -242,12 +249,35 @@ class PhotoGalleryViewController: UIViewController,
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PhotoCell", for: indexPath) as! PhotoCell
         let photo = fetchedResultsController.object(at: indexPath)
-        if let data = photo.imageData {
-            cell.imageView.image = UIImage(data: data)
+
+        if let cached = thumbnailCache[photo.objectID] {
+            cell.imageView.image = cached
+        } else if let data = photo.imageData, let image = UIImage(data: data) {
+            // サムネイル作成
+            let thumb = image.resize(to: CGSize(width: 200, height: 200))
+            thumbnailCache[photo.objectID] = thumb
+            cell.imageView.image = thumb
         } else {
             cell.imageView.image = nil
         }
+
         return cell
+    }
+
+    // MARK: - Prefetching
+    func collectionView(_ collectionView: UICollectionView, prefetchItemsAt indexPaths: [IndexPath]) {
+        for indexPath in indexPaths {
+            let photo = fetchedResultsController.object(at: indexPath)
+            if thumbnailCache[photo.objectID] == nil,
+               let data = photo.imageData,
+               let image = UIImage(data: data) {
+                thumbnailCache[photo.objectID] = image.resize(to: CGSize(width: 200, height: 200))
+            }
+        }
+    }
+
+    func collectionView(_ collectionView: UICollectionView, cancelPrefetchingForItemsAt indexPaths: [IndexPath]) {
+        // 必要ならキャッシュを解放する処理
     }
 
     // MARK: - FRC Delegate
@@ -278,7 +308,22 @@ class PhotoGalleryViewController: UIViewController,
             break
         }
     }
+
+    func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
+        // 個別更新で十分なのでreloadDataは不要
+    }
 }
+
+// MARK: - UIImage Resize Helper
+extension UIImage {
+    func resize(to targetSize: CGSize) -> UIImage {
+        let renderer = UIGraphicsImageRenderer(size: targetSize)
+        return renderer.image { _ in
+            self.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+    }
+}
+
 
 
 //

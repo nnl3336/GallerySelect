@@ -8,12 +8,13 @@
 import SwiftUI
 
 struct SearchView: View {
-    var controller: PhotoController
+    @ObservedObject var photoController: PhotoController
+    @ObservedObject var folderController: FolderController
     @Binding var isPresented: Bool
     
     @State private var keyword = ""
     @State private var showLikedOnly = false
-    @FocusState private var isTextFieldFocused: Bool   // ← フォーカス管理
+    @FocusState private var isTextFieldFocused: Bool   // フォーカス管理
     
     var body: some View {
         ZStack {
@@ -68,7 +69,6 @@ struct SearchView: View {
             .cornerRadius(16)
             .padding(.horizontal, 20)
             .onAppear {
-                // 表示されたら自動でフォーカス
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     isTextFieldFocused = true
                 }
@@ -80,11 +80,10 @@ struct SearchView: View {
                 isTextFieldFocused = true
             }
         }
-
     }
     
     private func applyFilter() {
-        controller.applyFilter(keyword: keyword, likedOnly: showLikedOnly)
+        photoController.applyFilter(keyword: keyword, likedOnly: showLikedOnly)
         isPresented = false
     }
 }

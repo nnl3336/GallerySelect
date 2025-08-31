@@ -20,7 +20,8 @@ import Photos
 struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
     
-    @ObservedObject var controller: PhotoController
+    @ObservedObject var photoController: PhotoController
+    @ObservedObject var folderController: FolderController
     @State private var currentScreen: AppScreen = .photos
 
     var body: some View {
@@ -28,36 +29,22 @@ struct ContentView: View {
             Group {
                 switch currentScreen {
                 case .photos:
-                    MainView(controller: controller)
+                    MainView(
+                        photoController: photoController,
+                        folderController: folderController
+                    )
                 case .albums:
-                    FolderListView(controller: controller)
+                    FolderListView(
+                        photoController: photoController,
+                        folderController: folderController
+                    )
                 }
             }
             .transition(.opacity)
-
-            // 画面下の切り替えボタン
-            /*HStack {
-                Button {
-                    withAnimation { currentScreen = .photos }
-                } label: {
-                    Label("写真", systemImage: "photo")
-                        .padding()
-                }
-
-                Spacer()
-
-                Button {
-                    withAnimation { currentScreen = .albums }
-                } label: {
-                    Label("アルバム", systemImage: "rectangle.stack")
-                        .padding()
-                }
-            }
-            .padding()
-            .background(.ultraThinMaterial)*/
         }
     }
 }
+
 
 // MARK: - FRCラッパークラス
 /*class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDelegate {
@@ -161,7 +148,7 @@ struct ContentView: View {
 extension ContentView {
     
     func deletePhoto(at index: Int) {
-        let photo = controller.photos[index]  // ← controller.photos に変更
+        let photo = photoController.photos[index]  // ← controller.photos に変更
         viewContext.delete(photo)
         
         do {
@@ -198,281 +185,149 @@ extension ContentView {
 
 // MARK: - SwiftUI MainView
 struct MainView: View {
-    @ObservedObject var controller: PhotoController
+    @Environment(\.managedObjectContext) private var viewContext
+    @ObservedObject var photoController: PhotoController
+    @ObservedObject var folderController: FolderController
     @State private var selectedIndex: Int? = nil
+<<<<<<< HEAD
     /*@State private var selectedPhotos = Set<Int>()*/ @State private var selectedPhotos = Set<Int>()
+=======
+    //@State private var selectedPhotos = Set<Int>()
+>>>>>>> f/14
     @State private var showPicker = false
     @State private var showSearch = false
     @State private var showFolderSheet = false
     @State private var showAlbum = false
-    // セグメント
     @State private var segmentSelection = 2
-    // 以前
-    //let segments = ["すべての写真", "前の月", "後ろの月"]
 
-    // 逆順に
     let segments = ["後ろの月", "前の月", "すべての写真"]
-    // 右端スクロールバー
-    @State private var showFastScroll = false
-    @State private var dragPosition: CGFloat = 0
-
     let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
+    
+    // Core Data から直接フェッチ
+    /*@FetchRequest(
+        entity: Photo.entity(),
+        sortDescriptors: [NSSortDescriptor(keyPath: \Photo.creationDate, ascending: false)]
+    ) private var photos: FetchedResults<Photo>*/
 
     var filteredPhotos: [Photo] {
         switch segmentSelection {
-        case 0: // 後ろの月
-            return controller.photos.filter { photo in
+        case 0:
+            return photoController.photos.filter { photo in
                 guard let date = photo.creationDate else { return false }
                 return Calendar.current.isDate(date, equalTo: Date().addingTimeInterval(30*24*60*60), toGranularity: .month)
             }
-        case 1: // 前の月
-            return controller.photos.filter { photo in
+        case 1:
+            return photoController.photos.filter { photo in
                 guard let date = photo.creationDate else { return false }
                 return Calendar.current.isDate(date, equalTo: Date().addingTimeInterval(-30*24*60*60), toGranularity: .month)
             }
-        case 2: // すべての写真
-            return controller.photos
         default:
-            return controller.photos
+            return photoController.photos
         }
     }
-    
-    @State private var visiblePhotoIndex: Int = 0
-
-    var groupedByMonth: [String: [Photo]] {
-        Dictionary(grouping: filteredPhotos) { photo in
-            let date = photo.creationDate ?? Date()
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy/MM" // 年/月でグループ
-            return formatter.string(from: date)
-        }
-    }
-
-    // 月ごとの先頭写真インデックス
-    var monthStartIndex: [String: Int] {
-        var dict: [String: Int] = [:]
-        let sortedMonths = groupedByMonth.keys.sorted(by: >) // 新しい月順
-        for month in sortedMonths {
-            if let firstPhoto = groupedByMonth[month]?.first,
-               let index = filteredPhotos.firstIndex(of: firstPhoto) {
-                dict[month] = index
-            }
-        }
-        return dict
-    }
-
+    @StateObject var viewModel = PhotoFRCController(context: PersistenceController.shared.container.viewContext)
+    @State private var selectedPhoto: Photo?
+    @State private var selectedPhotos: [Photo] = []
+    @State private var isSelectionMode = false
 
     var body: some View {
         NavigationView {
             VStack {
-
-                // 写真グリッド + 右端スクロール
                 ScrollViewReader { proxy in
-                    ZStack(alignment: .trailing) {
-                        ScrollView {
-                            LazyVStack(pinnedViews: [.sectionHeaders]) {
-                                ForEach(groupedByMonth.keys.sorted(by: >), id: \.self) { month in
-                                    Section {
-                                        let photosInMonth = groupedByMonth[month] ?? []
-                                        LazyVGrid(columns: columns, spacing: 10) {
-                                            ForEach(photosInMonth.indices, id: \.self) { indexInMonth in
-                                                let photo = photosInMonth[indexInMonth]
-                                                let globalIndex = filteredPhotos.firstIndex(of: photo) ?? 0
-                                                let isSelected = selectedPhotos.contains(globalIndex)
-                                                
-                                                PhotoGridCell(photo: photo, isSelected: isSelected)
-                                                    .id(globalIndex)
-                                                    .onTapGesture {
-                                                        if !selectedPhotos.isEmpty {
-                                                            if isSelected { selectedPhotos.remove(globalIndex) }
-                                                            else { selectedPhotos.insert(globalIndex) }
-                                                        } else {
-                                                            selectedIndex = globalIndex
-                                                        }
-                                                    }
-                                                    .contextMenu {
-                                                        // 既存の contextMenu 処理
-                                                    }
-                                            }
-                                        }
-                                        .padding(.horizontal)
-                                    } header: {
-                                        HStack {
-                                            Text(month)
-                                                .font(.headline)
-                                                .padding(.leading)
-                                            Spacer()
-                                        }
-                                        .frame(maxWidth: .infinity)
-                                        .background(.thinMaterial) // セクションヘッダー背景
-                                    }
-                                }
-                            }
-                            .padding(.top)
-                        }
+                }
 
-                        // 右端スクロールハンドル
-                        if showFastScroll {
-                            VStack {
-                                Spacer()
-                                Rectangle()
-                                    .fill(Color.gray.opacity(0.3))
-                                    .frame(width: 30, height: 150)
-                                    .cornerRadius(15)
-                                    .overlay(
-                                        Circle()
-                                            .fill(Color.blue)
-                                            .frame(width: 30, height: 30)
-                                            .offset(y: dragPosition)
-                                            .gesture(
-                                                DragGesture()
-                                                    .onChanged { value in
-                                                        let totalHeight: CGFloat = 150
-                                                        let y = min(max(value.location.y, 0), totalHeight)
-                                                        dragPosition = y - totalHeight/2
-                                                        let ratio = y / totalHeight
-                                                        let index = Int(ratio * CGFloat(max(filteredPhotos.count-1, 0)))
-                                                        withAnimation(.linear(duration: 0.05)) {
-                                                            proxy.scrollTo(index, anchor: .top)
-                                                        }
-                                                    }
-                                            )
-                                    )
-                                Spacer()
-                            }
-                            .frame(width: 40)
-                            .padding(.trailing, 8)
-                            .transition(.opacity)
-                            .animation(.easeInOut, value: showFastScroll)
+                if selectedIndex == nil {
+                    Picker("", selection: $segmentSelection) {
+                        ForEach(0..<segments.count, id: \.self) { i in
+                            Text(segments[i])
                         }
-
-                        // フルスクリーンスライダー
-                        if let index = selectedIndex {
-                            PhotoSliderView(
-                                fetchController: controller,
-                                selectedIndex: index,
-                                onClose: { selectedIndex = nil }
-                            )
-                            .zIndex(1)
-                        }
-
-                        // フローティングボタン
-                        FloatingButtonPanel(
-                            selectedPhotos: $selectedPhotos,
-                            showPicker: $showPicker,
-                            showSearch: $showSearch,
-                            showFolderSheet: $showFolderSheet,
-                            controller: controller
-                        )
                     }
-                    .onAppear {
-                            // filteredPhotos の最後のインデックスにスクロール
-                            if let lastIndex = filteredPhotos.indices.last {
-                                proxy.scrollTo(lastIndex, anchor: .bottom)
-                            }
-                        }
-                    
-                    // 下部の Picker を固定表示
-                    if selectedIndex == nil {
-                        Picker("", selection: $segmentSelection) {
-                            ForEach(0..<segments.count, id: \.self) { i in
-                                Text(segments[i])
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .padding()
-                        .background(.ultraThinMaterial)
-                        .onChange(of: segmentSelection) { newValue in
-                            let month = segments[newValue]
-                            if let index = monthStartIndex[month] {
-                                withAnimation {
-                                    proxy.scrollTo(index, anchor: .top)
-                                }
-                            } else if month == "すべての写真" {
-                                proxy.scrollTo(0, anchor: .top)
-                            }
+                    .pickerStyle(.segmented)
+                    .padding()
+                }
+            }
+            .navigationTitle("写真")
+            .toolbar {
+                ToolbarItemGroup(placement: .bottomBar) {
+                    Spacer()
+                    if isSelectionMode {
+                        Button("Cancel") {
+                            selectedPhotos.removeAll()
                         }
                     }
                 }
-                
-                
-                // 選択中ならCancelボタンを表示
-                        if !selectedPhotos.isEmpty {
-                            HStack {
-                                Spacer()
-                                Button("cancel") {
-                                    selectedPhotos.removeAll()
-                                }
-                                .padding(.leading)
-                                Spacer()
-                            }
-                        }
             }
-            .navigationTitle("写真")
         }
-        .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showPicker) {
             PhotoPicker { images, assets in
                 for (i, image) in images.enumerated() {
                     let creationDate = (i < assets.count) ? assets[i].creationDate ?? Date() : Date()
-                    controller.addPhoto(image, creationDate: creationDate)
+                    photoController.addPhoto(image, creationDate: creationDate)
                 }
             }
         }
         .sheet(isPresented: $showFolderSheet) {
-            FolderSheetView(
-                isPresented: $showFolderSheet,
-                selectedPhotos: .constant([]),  // ← 空集合
-                photos: controller.photos
+            FloatingButtonPanel(
+                photoController: photoController,
+                folderController: folderController,
+                selectedPhotos: $selectedPhotos,
+                showPicker: $showPicker,
+                showSearch: $showSearch,
+                showFolderSheet: $showFolderSheet
             )
         }
-
-        
         .fullScreenCover(isPresented: $showSearch) {
-            SearchView(controller: controller, isPresented: $showSearch)
+            SearchView(
+                photoController: photoController,
+                folderController: folderController,
+                isPresented: $showSearch)
         }
         .fullScreenCover(isPresented: $showAlbum) {
-            FolderListView(controller: controller) // ← 仮のアルバム画面
+            FolderListView(
+                photoController: photoController,
+                folderController: folderController)
         }
     }
 }
 
-struct PhotoGridCell: View {
-    var photo: Photo
-    var isSelected: Bool
 
-    @State private var uiImage: UIImage?
+
+
+
+struct FloatingButtonPanel: View {
+    @ObservedObject var photoController: PhotoController
+    @ObservedObject var folderController: FolderController
+    @Binding var selectedPhotos: [Photo]
+    @Binding var showPicker: Bool
+    @Binding var showSearch: Bool
+    @Binding var showFolderSheet: Bool
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            if let image = uiImage {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(height: 100)
-                    .clipped()
-            } else {
-                Color.gray.opacity(0.1)
-                    .frame(height: 100)
-                    .onAppear {
-                        DispatchQueue.global(qos: .userInitiated).async {
-                            if let data = photo.imageData,
-                               let loaded = UIImage(data: data) {
-                                DispatchQueue.main.async {
-                                    uiImage = loaded
-                                }
-                            }
-                        }
-                    }
+        VStack { Spacer()
+            HStack {
+                NavigationLink(destination: FolderListView(
+                    photoController: photoController,
+                    folderController: folderController
+                )) {
+                    Image(systemName: "photo.on.rectangle")
+                        .floatingStyle(color: .blue)
+                }
+                Button { if !selectedPhotos.isEmpty { showFolderSheet = true } } label: {
+                    Image(systemName: "folder.badge.plus")
+                        .floatingStyle(color: .purple)
+                }
+                Spacer()
+                Button { showSearch = true } label: {
+                    Image(systemName: "magnifyingglass")
+                        .floatingStyle(color: .green)
+                }
+                Button { showPicker = true } label: {
+                    Image(systemName: "plus")
+                        .floatingStyle(color: .orange)
+                }
             }
-
-            if isSelected {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.blue)
-                    .padding(5)
-            }
+            .padding(.bottom, 30)
         }
-        .cornerRadius(8)
     }
 }
 
@@ -497,6 +352,42 @@ struct PhotoContextMenu: View {
                 Label("削除", systemImage: "trash")
             }
         }
+    }
+}
+
+//
+
+extension UIImage {
+    /// 長辺を targetLength に合わせて縮小
+    func resizedMaintainingAspect(to targetLength: CGFloat) -> UIImage? {
+        let maxSide = max(size.width, size.height)
+        let scale = targetLength / maxSide
+        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
+
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        return renderer.image { _ in
+            self.draw(in: CGRect(origin: .zero, size: newSize))
+        }
+    }
+
+    /// サムネイル用JPEGデータ
+    func jpegThumbnailData(maxLength: CGFloat = 200, compression: CGFloat = 0.7) -> Data? {
+        return self.resizedMaintainingAspect(to: maxLength)?
+            .jpegData(compressionQuality: compression)
+    }
+}
+
+
+extension UIImage {
+    func resized(to targetSize: CGSize) -> UIImage? {
+        let renderer = UIGraphicsImageRenderer(size: targetSize)
+        return renderer.image { _ in
+            self.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+    }
+
+    func jpegData(resizedTo targetSize: CGSize, compression: CGFloat = 0.7) -> Data? {
+        return self.resized(to: targetSize)?.jpegData(compressionQuality: compression)
     }
 }
 
@@ -569,9 +460,6 @@ extension View {
 //
 
 
-
-
-
 // MARK: - PhotoPicker
 
 struct PhotoPicker: UIViewControllerRepresentable {
@@ -631,11 +519,16 @@ struct PhotoPicker: UIViewControllerRepresentable {
         func didPickPhotos(images: [UIImage], assets: [PHAsset]) {
             for (index, image) in images.enumerated() {
                 let asset = assets.indices.contains(index) ? assets[index] : nil
-                let captureDate = asset?.creationDate ?? Date()  // 撮影日がなければ現在日付で代用
+                let captureDate = asset?.creationDate ?? Date()
 
-                // Core Data へ保存
                 let newPhoto = Photo(context: viewContext)
+                
+                // フル解像度
                 newPhoto.imageData = image.jpegData(compressionQuality: 0.9)
+                
+                // サムネイル（縦横比維持・長辺200）
+                newPhoto.thumbnailData = image.jpegThumbnailData(maxLength: 200)
+
                 newPhoto.currentDate = captureDate
             }
 

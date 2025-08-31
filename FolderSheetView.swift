@@ -9,6 +9,8 @@ import SwiftUI
 
 // MARK: - Folder
 struct FolderSheetView: View {
+    @ObservedObject var photoController: PhotoController
+    @ObservedObject var folderController: FolderController
     @Environment(\.managedObjectContext) private var viewContext
     @Binding var isPresented: Bool
     @Binding var selectedPhotos: Set<Int>

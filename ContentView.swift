@@ -135,51 +135,44 @@ enum Section {
     case main
 }
 
-class PhotoGalleryViewController: UIViewController, UICollectionViewDelegate, PHPickerViewControllerDelegate {
+// MARK: - ViewController
+class PhotoGalleryViewController: UIViewController, NSFetchedResultsControllerDelegate {
 
     var context: NSManagedObjectContext!
     var collectionView: UICollectionView!
-    
-    // DiffableDataSource
-    var dataSource: UICollectionViewDiffableDataSource<Section, NSManagedObjectID>!
-    
+    typealias DataSource = UICollectionViewDiffableDataSource<Int, NSManagedObjectID>
+    typealias Snapshot = NSDiffableDataSourceSnapshot<Int, NSManagedObjectID>
+    var dataSource: DataSource!
+
+    var fetchedResultsController: NSFetchedResultsController<Photo>!
+
     override func viewDidLoad() {
         super.viewDidLoad()
-        
         context = PersistenceController.shared.container.viewContext
-        setupNavigationBar()
+
         setupCollectionView()
         setupDataSource()
-        loadPhotos()
-    }
-    
-    @objc func addPhotoTapped() {
-        var config = PHPickerConfiguration()
-        config.selectionLimit = 1
-        config.filter = .images
-
-        let picker = PHPickerViewController(configuration: config)
-        picker.delegate = self
-        present(picker, animated: true)
-    }
-    
-    // MARK: - Navigation Bar
-    func setupNavigationBar() {
-        title = "Photos"
-        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .add,
-                                                            target: self,
-                                                            action: #selector(addPhotoTapped))
+        setupFetchedResultsController()
+        try? fetchedResultsController.performFetch()
+        applySnapshot()
     }
 
+    // MARK: - CollectionView
     func setupCollectionView() {
-        // CompositionalLayout を使用
-        collectionView = UICollectionView(frame: .zero, collectionViewLayout: createLayout())
+        let layout = UICollectionViewFlowLayout()
+        let cellWidth: CGFloat = 100
+        layout.itemSize = CGSize(width: cellWidth, height: cellWidth)
+        layout.minimumInteritemSpacing = 10
+        layout.minimumLineSpacing = 10
+        layout.sectionInset = UIEdgeInsets(top: 10, left: 10, bottom: 10, right: 10)
+
+        collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         collectionView.translatesAutoresizingMaskIntoConstraints = false
         collectionView.backgroundColor = .systemBackground
-        collectionView.delegate = self
         collectionView.register(PhotoCell.self, forCellWithReuseIdentifier: "PhotoCell")
+
         view.addSubview(collectionView)
-        
+
         NSLayoutConstraint.activate([
             collectionView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             collectionView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
@@ -187,25 +180,10 @@ class PhotoGalleryViewController: UIViewController, UICollectionViewDelegate, PH
             collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
         ])
     }
-    
-    func createLayout() -> UICollectionViewLayout {
-        // CompositionalLayout のサンプル
-        let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(0.3),
-                                              heightDimension: .fractionalWidth(0.3))
-        let item = NSCollectionLayoutItem(layoutSize: itemSize)
-        item.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 5, bottom: 5, trailing: 5)
-        
-        let groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1.0),
-                                               heightDimension: .fractionalWidth(0.3))
-        let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupSize, subitems: [item])
-        
-        let section = NSCollectionLayoutSection(group: group)
-        return UICollectionViewCompositionalLayout(section: section)
-    }
 
+    // MARK: - DiffableDataSource
     func setupDataSource() {
-        dataSource = UICollectionViewDiffableDataSource<Section, NSManagedObjectID>(collectionView: collectionView) {
-            (collectionView, indexPath, objectID) -> UICollectionViewCell? in
+        dataSource = DataSource(collectionView: collectionView) { collectionView, indexPath, objectID in
             let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PhotoCell", for: indexPath) as! PhotoCell
             if let photo = try? self.context.existingObject(with: objectID) as? Photo,
                let data = photo.imageData {
@@ -214,57 +192,43 @@ class PhotoGalleryViewController: UIViewController, UICollectionViewDelegate, PH
             return cell
         }
     }
-    
-    func loadPhotos() {
-        let fetchRequest: NSFetchRequest<Photo> = Photo.fetchRequest()
-        fetchRequest.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
-        let photos = try? context.fetch(fetchRequest)
-        
-        var snapshot = NSDiffableDataSourceSnapshot<Section, NSManagedObjectID>()
-        snapshot.appendSections([.main])
-        snapshot.appendItems(photos?.map { $0.objectID } ?? [])
+
+    func applySnapshot() {
+        var snapshot = Snapshot()
+        snapshot.appendSections([0])
+        let items = fetchedResultsController.fetchedObjects?.map { $0.objectID } ?? []
+        snapshot.appendItems(items)
         dataSource.apply(snapshot, animatingDifferences: true)
     }
-    
-    // PHPicker で追加後
-    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-        picker.dismiss(animated: true)
-        guard let result = results.first else { return }
-        
-        result.itemProvider.loadObject(ofClass: UIImage.self) { [weak self] reading, error in
-            guard let self = self, let image = reading as? UIImage else { return }
-            DispatchQueue.main.async {
-                let newPhoto = Photo(context: self.context)
-                newPhoto.id = UUID()
-                newPhoto.creationDate = Date()
-                newPhoto.imageData = image.jpegData(compressionQuality: 0.8)
-                try? self.context.save()
-                
-                // snapshot に追加
-                var snapshot = self.dataSource.snapshot()
-                snapshot.appendItems([newPhoto.objectID], toSection: .main)
-                self.dataSource.apply(snapshot, animatingDifferences: true)
-            }
-        }
+
+    // MARK: - FRC
+    func setupFetchedResultsController() {
+        let request: NSFetchRequest<Photo> = Photo.fetchRequest()
+        request.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
+        fetchedResultsController = NSFetchedResultsController(fetchRequest: request,
+                                                              managedObjectContext: context,
+                                                              sectionNameKeyPath: nil,
+                                                              cacheName: nil)
+        fetchedResultsController.delegate = self
     }
 }
 
-
 //
 
+// MARK: - UICollectionViewCell
 class PhotoCell: UICollectionViewCell {
     let imageView = UIImageView()
-
     override init(frame: CGRect) {
         super.init(frame: frame)
         contentView.addSubview(imageView)
         imageView.frame = contentView.bounds
         imageView.contentMode = .scaleAspectFill
         imageView.clipsToBounds = true
+        contentView.backgroundColor = .secondarySystemBackground
     }
-
     required init?(coder: NSCoder) { fatalError() }
 }
+
 
 //
 

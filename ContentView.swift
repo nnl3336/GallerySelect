@@ -141,7 +141,10 @@ class PhotoGalleryViewController: UIViewController, UICollectionViewDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
         
+        title = "Photos" // ← ここでタイトル設定
+        
         context = PersistenceController.shared.container.viewContext
+        setupNavigationBar()
         setupCollectionView()
         setupFetchedResultsController()
         
@@ -151,6 +154,33 @@ class PhotoGalleryViewController: UIViewController, UICollectionViewDelegate {
             print("Fetch failed: \(error)")
         }
     }
+    
+    // MARK: - Navigation Bar Setup
+    func setupNavigationBar() {
+        // タイトル
+        title = "Photos"
+        
+        // 右に追加ボタン
+        let addButton = UIBarButtonItem(barButtonSystemItem: .add, target: self, action: #selector(addPhotoTapped))
+        navigationItem.rightBarButtonItem = addButton
+    }
+    
+    // MARK: - 写真追加アクション
+        @objc func addPhotoTapped() {
+            let newPhoto = Photo(context: context)
+            newPhoto.id = UUID()
+            
+            // サンプル画像
+            if let image = UIImage(systemName: "photo") {
+                newPhoto.imageData = image.jpegData(compressionQuality: 0.8)
+            }
+            
+            do {
+                try context.save()
+            } catch {
+                print("Failed to save photo: \(error)")
+            }
+        }
     
     func setupCollectionView() {
         let layout = UICollectionViewFlowLayout()
@@ -237,20 +267,16 @@ extension PhotoGalleryViewController: NSFetchedResultsControllerDelegate {
 
 //
 
-struct CollectionViewWrapper: UIViewRepresentable {
+// UIViewControllerRepresentable を使う
+struct CollectionViewWrapper: UIViewControllerRepresentable {
     
-    func makeUIView(context: Context) -> UICollectionView {
-        let layout = UICollectionViewFlowLayout()
-        layout.itemSize = CGSize(width: 100, height: 100)
-        
-        let collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
-        collectionView.backgroundColor = .systemBackground
-        collectionView.register(PhotoCell.self, forCellWithReuseIdentifier: "PhotoCell")
-        return collectionView
+    func makeUIViewController(context: Context) -> PhotoGalleryViewController {
+        let vc = PhotoGalleryViewController()
+        return vc
     }
     
-    func updateUIView(_ uiView: UICollectionView, context: Context) {
-        uiView.reloadData()
+    func updateUIViewController(_ uiViewController: PhotoGalleryViewController, context: Context) {
+        // ここで必要なら更新処理
     }
 }
 

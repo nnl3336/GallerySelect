@@ -128,93 +128,110 @@ import CoreData
 import Combine
 
 import UIKit
+import PhotosUI
 import CoreData
 
-class PhotoGalleryViewController: UIViewController, UICollectionViewDelegate {
+class PhotoGalleryViewController: UIViewController,
+                                  UICollectionViewDataSource,
+                                  UICollectionViewDelegate,
+                                  NSFetchedResultsControllerDelegate,
+                                  PHPickerViewControllerDelegate {
 
     var context: NSManagedObjectContext!
     var collectionView: UICollectionView!
-    
-    // FetchedResultsController
     var fetchedResultsController: NSFetchedResultsController<Photo>!
-    
+
     override func viewDidLoad() {
         super.viewDidLoad()
-        
-        title = "Photos" // ← ここでタイトル設定
-        
+
         context = PersistenceController.shared.container.viewContext
         setupNavigationBar()
         setupCollectionView()
         setupFetchedResultsController()
-        
-        do {
-            try fetchedResultsController.performFetch()
-        } catch {
-            print("Fetch failed: \(error)")
-        }
+
+        try? fetchedResultsController.performFetch()
     }
-    
-    // MARK: - Navigation Bar Setup
+
+    // MARK: - Navigation Bar
     func setupNavigationBar() {
-        // タイトル
         title = "Photos"
-        
-        // 右に追加ボタン
-        let addButton = UIBarButtonItem(barButtonSystemItem: .add, target: self, action: #selector(addPhotoTapped))
-        navigationItem.rightBarButtonItem = addButton
+        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .add,
+                                                            target: self,
+                                                            action: #selector(addPhotoTapped))
     }
-    
-    // MARK: - 写真追加アクション
-        @objc func addPhotoTapped() {
-            let newPhoto = Photo(context: context)
-            newPhoto.id = UUID()
-            
-            // サンプル画像
-            if let image = UIImage(systemName: "photo") {
-                newPhoto.imageData = image.jpegData(compressionQuality: 0.8)
-            }
-            
-            do {
-                try context.save()
-            } catch {
-                print("Failed to save photo: \(error)")
+
+    @objc func addPhotoTapped() {
+        var config = PHPickerConfiguration()
+        config.selectionLimit = 1
+        config.filter = .images
+
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = self
+        present(picker, animated: true)
+    }
+
+    // MARK: - PHPicker Delegate
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        picker.dismiss(animated: true)
+        guard let result = results.first else { return }
+
+        result.itemProvider.loadObject(ofClass: UIImage.self) { [weak self] reading, error in
+            guard let self = self else { return }
+            if let image = reading as? UIImage {
+                DispatchQueue.main.async {
+                    let newPhoto = Photo(context: self.context)
+                    newPhoto.id = UUID()
+                    newPhoto.creationDate = Date()
+                    newPhoto.imageData = image.jpegData(compressionQuality: 0.8)
+                    try? self.context.save()
+                }
             }
         }
-    
+    }
+
+    // MARK: - CollectionView
     func setupCollectionView() {
         let layout = UICollectionViewFlowLayout()
         layout.itemSize = CGSize(width: 100, height: 100)
-        
-        collectionView = UICollectionView(frame: view.bounds, collectionViewLayout: layout)
-        collectionView.register(PhotoCell.self, forCellWithReuseIdentifier: "PhotoCell")
+        layout.minimumLineSpacing = 10
+        layout.minimumInteritemSpacing = 10
+
+        collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
+        collectionView.translatesAutoresizingMaskIntoConstraints = false
+        collectionView.backgroundColor = .systemBackground
         collectionView.dataSource = self
         collectionView.delegate = self
-        
+
+        collectionView.register(PhotoCell.self, forCellWithReuseIdentifier: "PhotoCell")
+
         view.addSubview(collectionView)
+
+        NSLayoutConstraint.activate([
+            collectionView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            collectionView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        ])
     }
-    
+
     func setupFetchedResultsController() {
         let request: NSFetchRequest<Photo> = Photo.fetchRequest()
-        request.sortDescriptors = [NSSortDescriptor(key: "id", ascending: true)]
-        
+        request.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
+
         fetchedResultsController = NSFetchedResultsController(
             fetchRequest: request,
             managedObjectContext: context,
             sectionNameKeyPath: nil,
             cacheName: nil
         )
-        
         fetchedResultsController.delegate = self
     }
-}
 
-// UICollectionView DataSource
-extension PhotoGalleryViewController: UICollectionViewDataSource {
+    // MARK: - CollectionView DataSource
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
         return fetchedResultsController.fetchedObjects?.count ?? 0
     }
-    
+
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PhotoCell", for: indexPath) as! PhotoCell
         let photo = fetchedResultsController.object(at: indexPath)
@@ -223,20 +240,8 @@ extension PhotoGalleryViewController: UICollectionViewDataSource {
         }
         return cell
     }
-}
 
-// NSFetchedResultsController Delegate
-extension PhotoGalleryViewController: NSFetchedResultsControllerDelegate {
-    
-    func controllerWillChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
-        collectionView.performBatchUpdates(nil, completion: nil)
-    }
-    
-    func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
-        collectionView.reloadData()
-    }
-    
-    // 個別の挿入・削除・更新・移動もハンドル可能
+    // MARK: - FRC Delegate
     func controller(_ controller: NSFetchedResultsController<NSFetchRequestResult>,
                     didChange anObject: Any,
                     at indexPath: IndexPath?,
@@ -263,27 +268,17 @@ extension PhotoGalleryViewController: NSFetchedResultsControllerDelegate {
             break
         }
     }
+
+    func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
+        collectionView.reloadData()
+    }
 }
 
 //
 
-// UIViewControllerRepresentable を使う
-struct CollectionViewWrapper: UIViewControllerRepresentable {
-    
-    func makeUIViewController(context: Context) -> PhotoGalleryViewController {
-        let vc = PhotoGalleryViewController()
-        return vc
-    }
-    
-    func updateUIViewController(_ uiViewController: PhotoGalleryViewController, context: Context) {
-        // ここで必要なら更新処理
-    }
-}
-
-// シンプルな UICollectionViewCell
 class PhotoCell: UICollectionViewCell {
     let imageView = UIImageView()
-    
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         contentView.addSubview(imageView)
@@ -291,6 +286,18 @@ class PhotoCell: UICollectionViewCell {
         imageView.contentMode = .scaleAspectFill
         imageView.clipsToBounds = true
     }
-    
+
     required init?(coder: NSCoder) { fatalError() }
+}
+
+//
+
+struct CollectionViewWrapper: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> UINavigationController {
+        let photoVC = PhotoGalleryViewController()
+        let nav = UINavigationController(rootViewController: photoVC)
+        return nav
+    }
+
+    func updateUIViewController(_ uiViewController: UINavigationController, context: Context) { }
 }

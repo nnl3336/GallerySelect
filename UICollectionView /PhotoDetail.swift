@@ -7,7 +7,8 @@
 
 import SwiftUI
 
-
+/*
+ 
 struct PhotoGridView: View {
     let photos: [Photo]
     @Binding var selectedIndex: Int?
@@ -120,7 +121,7 @@ struct PhotoDetailPager: View {
     }
 }
 
-
+*/
 
 
 /*class PhotoDetailViewController: UIViewController {

@@ -79,17 +79,36 @@ class PhotoSliderViewModel: ObservableObject {
     @Published var localNotes: [Int: String] = [:]
     @Published var localLikes: [Int: Bool] = [:]
     
-    private(set) var imageCache: [Int: UIImage] = [:]
+    private(set) var thumbnailCache: [Int: UIImage] = [:]
+    private(set) var fullImageCache: [Int: UIImage] = [:]
     
-    func cachedImage(for index: Int, photos: [Photo]) -> UIImage {
-        if let img = imageCache[index] { return img }
-        if let data = photos[index].imageData, let img = UIImage(data: data) {
-            imageCache[index] = img
+    // サムネイルを返す（スクロール用）
+    func cachedThumbnail(for index: Int, photos: [Photo]) -> UIImage {
+        if let img = thumbnailCache[index] {
+            return img
+        }
+        if let data = photos[index].thumbnailData,  // ← CoreData に保存した縮小版
+           let img = UIImage(data: data) {
+            thumbnailCache[index] = img
+            return img
+        }
+        return UIImage()
+    }
+    
+    // フル画像を返す（拡大表示用）
+    func cachedFullImage(for index: Int, photos: [Photo]) -> UIImage {
+        if let img = fullImageCache[index] {
+            return img
+        }
+        if let data = photos[index].fullImageData,  // ← CoreData に保存した高画質版
+           let img = UIImage(data: data) {
+            fullImageCache[index] = img
             return img
         }
         return UIImage()
     }
 }
+
 
 // MARK: - FolderController
 class FolderController: NSObject, ObservableObject {
@@ -212,13 +231,19 @@ class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDel
         let newPhoto = Photo(context: context)
         newPhoto.id = UUID()
         newPhoto.creationDate = creationDate
-        newPhoto.imageData = image.jpegData(compressionQuality: 0.8)
+        
+        // 高画質（フルサイズ）
+        newPhoto.fullImageData = image.jpegData(compressionQuality: 0.9)
+        
+        // サムネイル（スクロール用に縮小）
+        let thumb = image.resize(to: CGSize(width: 200, height: 200))
+        newPhoto.thumbnailData = thumb.jpegData(compressionQuality: 0.7)
         
         do {
             try context.save()
             photos.append(newPhoto)
         } catch {
-            print(error)
+            print("CoreData save error: \(error.localizedDescription)")
         }
     }
 

@@ -78,7 +78,14 @@ class PhotoGalleryViewController: UIViewController,
             cacheName: nil
         )
         fetchedResultsController.delegate = self
+
+        do {
+            try fetchedResultsController.performFetch()
+        } catch {
+            print("Fetch error: \(error)")
+        }
     }
+
 
     // MARK: - PHPicker
     @objc func addPhotoTapped() {
@@ -90,27 +97,72 @@ class PhotoGalleryViewController: UIViewController,
         present(picker, animated: true)
     }
 
+
     func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
         picker.dismiss(animated: true)
+
+        var imagesToAdd: [UIImage] = []
+        let group = DispatchGroup()
+
         for result in results {
-            result.itemProvider.loadObject(ofClass: UIImage.self) { [weak self] reading, _ in
-                guard let self = self, let image = reading as? UIImage else { return }
-                DispatchQueue.main.async {
-                    let newPhoto = Photo(context: self.context)
-                    newPhoto.id = UUID()
-                    newPhoto.creationDate = Date()
-                    newPhoto.fullImageData = image.jpegData(compressionQuality: 0.9)
-                    let thumb = image.resize(to: CGSize(width: 200, height: 200))
-                    newPhoto.thumbnailData = thumb.jpegData(compressionQuality: 0.7)
-                    do {
-                        try self.context.save()
-                    } catch {
-                        print("CoreData save error: \(error)")
-                    }
+            group.enter()
+            result.itemProvider.loadObject(ofClass: UIImage.self) { reading, error in
+                defer { group.leave() }
+                if let image = reading as? UIImage {
+                    imagesToAdd.append(image)
                 }
             }
         }
+
+        group.notify(queue: .main) {
+            self.context.perform {
+                // FRC の delegate を一時的に無効化
+                self.fetchedResultsController.delegate = nil
+
+                for image in imagesToAdd {
+                    let photo = Photo(context: self.context)
+                    photo.id = UUID()
+                    photo.creationDate = Date()
+                    photo.fullImageData = image.jpegData(compressionQuality: 0.9)
+                    let thumb = image.resize(to: CGSize(width: 200, height: 200))
+                    photo.thumbnailData = thumb.jpegData(compressionQuality: 0.7)
+                }
+
+                do {
+                    try self.context.save()
+                    // FRC を再フェッチして CollectionView を reload
+                    try self.fetchedResultsController.performFetch()
+                    self.collectionView.reloadData()
+                } catch {
+                    print("CoreData save error: \(error)")
+                }
+
+                // delegate を戻す
+                self.fetchedResultsController.delegate = self
+            }
+        }
     }
+
+
+    
+    func addPhoto(_ image: UIImage) {
+        let newPhoto = Photo(context: context)
+        newPhoto.id = UUID()
+        newPhoto.creationDate = Date()
+        newPhoto.fullImageData = image.jpegData(compressionQuality: 0.9)
+        let thumb = image.resize(to: CGSize(width: 200, height: 200))
+        newPhoto.thumbnailData = thumb.jpegData(compressionQuality: 0.7)
+        
+        do {
+            try context.save()
+            // ❌ reloadData や performFetch は呼ばない
+        } catch {
+            print("CoreData save error: \(error)")
+        }
+    }
+
+
+
 
     // MARK: - UICollectionViewDataSource
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
@@ -121,13 +173,12 @@ class PhotoGalleryViewController: UIViewController,
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PhotoCell", for: indexPath) as! PhotoCell
         let photo = fetchedResultsController.object(at: indexPath)
 
-        if let thumb = thumbnailCache.object(forKey: photo.objectID) {
-            cell.imageView.image = thumb
-        } else if let data = photo.thumbnailData, let image = UIImage(data: data) {
+        // thumbnailData → imageData → fullImageData の順で使用
+        if let data = photo.thumbnailData ?? photo.imageData ?? photo.fullImageData,
+           let image = UIImage(data: data) {
             cell.imageView.image = image
-            thumbnailCache.setObject(image, forKey: photo.objectID)
         } else {
-            cell.imageView.image = nil
+            cell.imageView.image = UIImage(systemName: "photo") // デフォルト画像
         }
 
         // キャッシュ範囲更新
@@ -135,6 +186,7 @@ class PhotoGalleryViewController: UIViewController,
 
         return cell
     }
+
 
     // MARK: - UICollectionViewDelegate
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
@@ -219,6 +271,7 @@ class PhotoGalleryViewController: UIViewController,
             break
         }
     }
+
 
     // MARK: - Fullscreen Image VC
     class FullscreenImageViewController: UIViewController {

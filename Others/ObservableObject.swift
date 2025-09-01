@@ -100,7 +100,7 @@ class PhotoSliderViewModel: ObservableObject {
         if let img = fullImageCache[index] {
             return img
         }
-        if let data = photos[index].fullImageData,  // ← CoreData に保存した高画質版
+        if let data = photos[index].imageData,  // ← CoreData に保存した高画質版
            let img = UIImage(data: data) {
             fullImageCache[index] = img
             return img
@@ -233,7 +233,7 @@ class PhotoController: NSObject, ObservableObject, NSFetchedResultsControllerDel
         newPhoto.creationDate = creationDate
         
         // 高画質（フルサイズ）
-        newPhoto.fullImageData = image.jpegData(compressionQuality: 0.9)
+        newPhoto.imageData = image.jpegData(compressionQuality: 0.9)
         
         // サムネイル（スクロール用に縮小）
         let thumb = image.resize(to: CGSize(width: 200, height: 200))

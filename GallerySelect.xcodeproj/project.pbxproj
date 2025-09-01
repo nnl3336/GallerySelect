@@ -115,8 +115,8 @@
 				18F54CA12E50C2A400D337E5 /* GallerySelectApp.swift */,
 				18A62A1D2E50544900AFC31A /* GallerySelect.xcdatamodeld */,
 				188981262E4F301400D6539F /* ContentView.swift */,
-				1893CA812E6436870082F8B6 /* PHPickerViewController.swift */,
 				189D47B52E56CD34005FB6AF /* UICollectionView  */,
+				1893CAF82E657C430082F8B6 /* PHPickerViewController */,
 				18A62A2D2E50552500AFC31A /* PhotoSliderView.swift */,
 				18F54CAD2E51F1ED00D337E5 /* SearchView.swift */,
 				18F54CB22E52E12F00D337E5 /* AlbumView.swift */,
@@ -138,6 +138,14 @@
 				1889813C2E4F301600D6539F /* GallerySelectUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		1893CAF82E657C430082F8B6 /* PHPickerViewController */ = {
+			isa = PBXGroup;
+			children = (
+				1893CA812E6436870082F8B6 /* PHPickerViewController.swift */,
+			);
+			path = PHPickerViewController;
 			sourceTree = "<group>";
 		};
 		189D47B52E56CD34005FB6AF /* UICollectionView  */ = {

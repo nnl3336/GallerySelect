@@ -4,23 +4,11 @@
 //
 //  Created by Yuki Sasaki on 2025/08/24.
 //
-
-import SwiftUI
-import UIKit
-
 import UIKit
 import SwiftUI
 import PhotosUI
 import CoreData
 import Combine
-
-import UIKit
-import PhotosUI
-import CoreData
-
-import UIKit
-import PhotosUI
-import CoreData
 
 class PhotoGalleryViewController: UIViewController,
                                   UICollectionViewDataSource,
@@ -34,8 +22,11 @@ class PhotoGalleryViewController: UIViewController,
     var fetchedResultsController: NSFetchedResultsController<Photo>!
 
     // サムネイルキャッシュ（表示中 + 前後100枚）
-    var thumbnailCache: [NSManagedObjectID: UIImage] = [:]
+    // Dictionary から NSCache に変更
+    var thumbnailCache = NSCache<NSManagedObjectID, UIImage>()
     let cacheWindow = 100
+    
+    //***
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -45,6 +36,43 @@ class PhotoGalleryViewController: UIViewController,
         setupFetchedResultsController()
         try? fetchedResultsController.performFetch()
     }
+    
+    //***
+    
+    
+    
+    // サムネイルキャッシュを NSCache に変更
+
+    // Prefetch
+
+    // MARK: - Prefetching
+    func collectionView(_ collectionView: UICollectionView, prefetchItemsAt indexPaths: [IndexPath]) {
+        guard let fetchedObjects = fetchedResultsController.fetchedObjects else { return }
+
+        let minIndex = max((indexPaths.map { $0.item }.min() ?? 0) - cacheWindow, 0)
+        let maxIndex = min((indexPaths.map { $0.item }.max() ?? 0) + cacheWindow, fetchedObjects.count - 1)
+
+        for i in minIndex...maxIndex {
+            let photo = fetchedObjects[i]
+            if thumbnailCache.object(forKey: photo.objectID) == nil,
+               let data = photo.imageData {
+                // 非同期デコード
+                DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                    guard let image = UIImage(data: data) else { return }
+                    let thumb = image.resize(to: CGSize(width: 200, height: 200))
+                    DispatchQueue.main.async {
+                        self?.thumbnailCache.setObject(thumb, forKey: photo.objectID)
+                        if let visibleIndexPaths = self?.collectionView.indexPathsForVisibleItems,
+                           visibleIndexPaths.contains(IndexPath(item: i, section: 0)),
+                           let cell = self?.collectionView.cellForItem(at: IndexPath(item: i, section: 0)) as? PhotoCell {
+                            cell.imageView.image = thumb
+                        }
+                    }
+                }
+            }
+        }
+    }
+
 
     // MARK: - Navigation
     func setupNavigationBar() {
@@ -133,51 +161,47 @@ class PhotoGalleryViewController: UIViewController,
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PhotoCell", for: indexPath) as! PhotoCell
         updateCacheAround(index: indexPath.item) // キャッシュ範囲更新
         let photo = fetchedResultsController.object(at: indexPath)
-        cell.imageView.image = thumbnailCache[photo.objectID]
+        cell.imageView.image = thumbnailCache.object(forKey: photo.objectID)
         return cell
     }
 
     // MARK: - Prefetching
-    func collectionView(_ collectionView: UICollectionView, prefetchItemsAt indexPaths: [IndexPath]) {
-        guard let fetchedObjects = fetchedResultsController.fetchedObjects else { return }
-        let minIndex = max((indexPaths.map { $0.item }.min() ?? 0) - cacheWindow, 0)
-        let maxIndex = min((indexPaths.map { $0.item }.max() ?? 0) + cacheWindow, fetchedObjects.count - 1)
-        for i in minIndex...maxIndex {
-            let photo = fetchedObjects[i]
-            if thumbnailCache[photo.objectID] == nil, let data = photo.imageData, let image = UIImage(data: data) {
-                thumbnailCache[photo.objectID] = image.resize(to: CGSize(width: 200, height: 200))
-            }
-        }
-        // 範囲外キャッシュ削除
-        thumbnailCache.keys.forEach { key in
-            if let idx = fetchedObjects.firstIndex(where: { $0.objectID == key }), idx < minIndex || idx > maxIndex {
-                thumbnailCache.removeValue(forKey: key)
-            }
-        }
-    }
 
     func collectionView(_ collectionView: UICollectionView, cancelPrefetchingForItemsAt indexPaths: [IndexPath]) {
         // ここでも必要ならキャッシュ破棄可能
     }
 
     // MARK: - Helper
+
+    var cachedKeys = Set<NSManagedObjectID>()
+
     private func updateCacheAround(index: Int) {
         guard let fetchedObjects = fetchedResultsController.fetchedObjects else { return }
         let start = max(index - cacheWindow, 0)
         let end = min(index + cacheWindow, fetchedObjects.count - 1)
+
         for i in start...end {
             let photo = fetchedObjects[i]
-            if thumbnailCache[photo.objectID] == nil, let data = photo.imageData, let image = UIImage(data: data) {
-                thumbnailCache[photo.objectID] = image.resize(to: CGSize(width: 200, height: 200))
+            if thumbnailCache.object(forKey: photo.objectID) == nil,
+               let data = photo.imageData,
+               let image = UIImage(data: data) {
+                let thumb = image.resize(to: CGSize(width: 200, height: 200))
+                thumbnailCache.setObject(thumb, forKey: photo.objectID)
+                cachedKeys.insert(photo.objectID)
             }
         }
+
         // 範囲外キャッシュ削除
-        thumbnailCache.keys.forEach { key in
-            if let idx = fetchedObjects.firstIndex(where: { $0.objectID == key }), idx < start || idx > end {
-                thumbnailCache.removeValue(forKey: key)
+        for key in cachedKeys {
+            if let idx = fetchedObjects.firstIndex(where: { $0.objectID == key }),
+               idx < start || idx > end {
+                thumbnailCache.removeObject(forKey: key)
+                cachedKeys.remove(key)
             }
         }
     }
+
+
 
     // MARK: - FRC Delegate
     func controller(_ controller: NSFetchedResultsController<NSFetchRequestResult>,
@@ -311,6 +335,10 @@ class PhotoCollectionViewController: UIViewController,
             isSelectionMode = false
         }
     }
+    
+    
+    
+
 
     // MARK: - UICollectionViewDataSource
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
@@ -404,6 +432,8 @@ class PhotoCollectionViewController: UIViewController,
         notifySelectionChanged()
     }
 }
+
+
 
 //
 

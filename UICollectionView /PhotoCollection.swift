@@ -10,8 +10,11 @@ import PhotosUI
 import CoreData
 import Combine
 
+import UIKit
+import CoreData
+import PhotosUI
+
 class PhotoGalleryViewController: UIViewController,
-                                  UICollectionViewDataSource,
                                   UICollectionViewDelegate,
                                   NSFetchedResultsControllerDelegate,
                                   UICollectionViewDataSourcePrefetching,
@@ -21,6 +24,9 @@ class PhotoGalleryViewController: UIViewController,
     var context: NSManagedObjectContext!
     var collectionView: UICollectionView!
     var fetchedResultsController: NSFetchedResultsController<Photo>!
+
+    enum Section { case main }
+    var dataSource: UICollectionViewDiffableDataSource<Section, NSManagedObjectID>!
 
     let cacheWindow = 100
     var thumbnailCache = NSCache<NSManagedObjectID, UIImage>()
@@ -34,10 +40,12 @@ class PhotoGalleryViewController: UIViewController,
 
         setupNavigationBar()
         setupCollectionView()
+        setupDataSource()
         setupFetchedResultsController()
 
         do {
             try fetchedResultsController.performFetch()
+            applySnapshot(animated: false)
         } catch {
             print("Fetch error: \(error)")
         }
@@ -60,32 +68,55 @@ class PhotoGalleryViewController: UIViewController,
         collectionView = UICollectionView(frame: view.bounds, collectionViewLayout: layout)
         collectionView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         collectionView.backgroundColor = .systemBackground
-        collectionView.dataSource = self
         collectionView.delegate = self
         collectionView.prefetchDataSource = self
         collectionView.register(PhotoCell.self, forCellWithReuseIdentifier: "PhotoCell")
         view.addSubview(collectionView)
     }
 
+    func setupDataSource() {
+        dataSource = UICollectionViewDiffableDataSource<Section, NSManagedObjectID>(collectionView: collectionView) { [weak self] collectionView, indexPath, objectID in
+            guard let self = self else { return UICollectionViewCell() }
+            let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PhotoCell", for: indexPath) as! PhotoCell
+
+            // キャッシュから取得、なければ読み込む
+            if let image = self.thumbnailCache.object(forKey: objectID) {
+                cell.imageView.image = image
+            } else if let photo = try? self.context.existingObject(with: objectID) as? Photo,
+                      let data = photo.thumbnailData,
+                      let image = UIImage(data: data) {
+                cell.imageView.image = image
+                self.thumbnailCache.setObject(image, forKey: objectID)
+                self.cachedKeys.insert(objectID)
+            } else {
+                cell.imageView.image = nil
+            }
+
+            self.updateCacheAround(index: indexPath.item)
+            return cell
+        }
+    }
+
     func setupFetchedResultsController() {
         let request: NSFetchRequest<Photo> = Photo.fetchRequest()
         request.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
 
-        fetchedResultsController = NSFetchedResultsController(
-            fetchRequest: request,
-            managedObjectContext: context,
-            sectionNameKeyPath: nil,
-            cacheName: nil
-        )
+        fetchedResultsController = NSFetchedResultsController(fetchRequest: request,
+                                                              managedObjectContext: context,
+                                                              sectionNameKeyPath: nil,
+                                                              cacheName: nil)
         fetchedResultsController.delegate = self
-
-        do {
-            try fetchedResultsController.performFetch()
-        } catch {
-            print("Fetch error: \(error)")
-        }
     }
 
+    // MARK: - Snapshot
+    func applySnapshot(animated: Bool = true) {
+        guard let objects = fetchedResultsController.fetchedObjects else { return }
+        var snapshot = NSDiffableDataSourceSnapshot<Section, NSManagedObjectID>()
+        snapshot.appendSections([.main])
+        snapshot.appendItems(fetchedResultsController.fetchedObjects!.map { $0.objectID })
+        print(snapshot.numberOfItems) // <- ここで0なら何も表示されない
+        dataSource.apply(snapshot, animatingDifferences: false)
+    }
 
     // MARK: - PHPicker
     @objc func addPhotoTapped() {
@@ -97,16 +128,18 @@ class PhotoGalleryViewController: UIViewController,
         present(picker, animated: true)
     }
 
+    //写真保存
+    let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
 
     func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
         picker.dismiss(animated: true)
 
-        var imagesToAdd: [UIImage] = []
         let group = DispatchGroup()
+        var imagesToAdd: [UIImage] = []
 
         for result in results {
             group.enter()
-            result.itemProvider.loadObject(ofClass: UIImage.self) { reading, error in
+            result.itemProvider.loadObject(ofClass: UIImage.self) { reading, _ in
                 defer { group.leave() }
                 if let image = reading as? UIImage {
                     imagesToAdd.append(image)
@@ -115,86 +148,49 @@ class PhotoGalleryViewController: UIViewController,
         }
 
         group.notify(queue: .main) {
-            self.context.perform {
-                // FRC の delegate を一時的に無効化
-                self.fetchedResultsController.delegate = nil
-
-                for image in imagesToAdd {
+            for image in imagesToAdd {
+                let uuid = UUID().uuidString
+                if let fileWrapper = self.savePhotoToFile(photo: image, fileName: uuid) {
+                    let url = self.documentsDirectory.appendingPathComponent(uuid) // ディレクトリ名
+                    try? fileWrapper.write(to: url, options: .atomic, originalContentsURL: nil)
+                    
+                    // Core Data には URL を保存
                     let photo = Photo(context: self.context)
                     photo.id = UUID()
                     photo.creationDate = Date()
-                    photo.fullImageData = image.jpegData(compressionQuality: 0.9)
-                    let thumb = image.resize(to: CGSize(width: 200, height: 200))
-                    photo.thumbnailData = thumb.jpegData(compressionQuality: 0.7)
+                    photo.imageURL = url.path
                 }
-
-                do {
-                    try self.context.save()
-                    // FRC を再フェッチして CollectionView を reload
-                    try self.fetchedResultsController.performFetch()
-                    self.collectionView.reloadData()
-                } catch {
-                    print("CoreData save error: \(error)")
-                }
-
-                // delegate を戻す
-                self.fetchedResultsController.delegate = self
             }
+            try? self.context.save()
         }
+
     }
-
-
     
-    func addPhoto(_ image: UIImage) {
-        let newPhoto = Photo(context: context)
-        newPhoto.id = UUID()
-        newPhoto.creationDate = Date()
-        newPhoto.fullImageData = image.jpegData(compressionQuality: 0.9)
-        let thumb = image.resize(to: CGSize(width: 200, height: 200))
-        newPhoto.thumbnailData = thumb.jpegData(compressionQuality: 0.7)
+    func savePhotoToFile(photo: UIImage, fileName: String) -> FileWrapper? {
+        let directoryWrapper = FileWrapper(directoryWithFileWrappers: [:])
         
-        do {
-            try context.save()
-            // ❌ reloadData や performFetch は呼ばない
-        } catch {
-            print("CoreData save error: \(error)")
+        // Thumbnail
+        if let thumbData = photo.resize(to: CGSize(width: 200, height: 200))
+                                .jpegData(compressionQuality: 0.7) {
+            let thumbWrapper = FileWrapper(regularFileWithContents: thumbData)
+            thumbWrapper.preferredFilename = "thumb.jpg"
+            directoryWrapper.addFileWrapper(thumbWrapper)
         }
+
+        // Full image
+        if let fullData = photo.jpegData(compressionQuality: 0.9) {
+            let fullWrapper = FileWrapper(regularFileWithContents: fullData)
+            fullWrapper.preferredFilename = "full.jpg"
+            directoryWrapper.addFileWrapper(fullWrapper)
+        }
+
+        return directoryWrapper
     }
 
 
-
-
-    // MARK: - UICollectionViewDataSource
-    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-        return fetchedResultsController.fetchedObjects?.count ?? 0
-    }
-
-    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
-        let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PhotoCell", for: indexPath) as! PhotoCell
-        let photo = fetchedResultsController.object(at: indexPath)
-
-        // thumbnailData → imageData → fullImageData の順で使用
-        if let data = photo.thumbnailData ?? photo.imageData ?? photo.fullImageData,
-           let image = UIImage(data: data) {
-            cell.imageView.image = image
-        } else {
-            cell.imageView.image = UIImage(systemName: "photo") // デフォルト画像
-        }
-
-        // キャッシュ範囲更新
-        updateCacheAround(index: indexPath.item)
-
-        return cell
-    }
-
-
-    // MARK: - UICollectionViewDelegate
-    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-        let photo = fetchedResultsController.object(at: indexPath)
-        if let data = photo.fullImageData, let fullImage = UIImage(data: data) {
-            let vc = FullscreenImageViewController(image: fullImage)
-            navigationController?.pushViewController(vc, animated: true)
-        }
+    // MARK: - NSFetchedResultsControllerDelegate
+    func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
+        applySnapshot()
     }
 
     // MARK: - Prefetching
@@ -205,18 +201,32 @@ class PhotoGalleryViewController: UIViewController,
 
         for i in minIndex...maxIndex {
             let photo = fetchedObjects[i]
-            if thumbnailCache.object(forKey: photo.objectID) == nil,
-               let data = photo.thumbnailData,
-               let image = UIImage(data: data) {
-                thumbnailCache.setObject(image, forKey: photo.objectID)
-                cachedKeys.insert(photo.objectID)
+
+            if thumbnailCache.object(forKey: photo.objectID) == nil {
+                var dataToUse: Data?
+                
+                if let thumb = photo.thumbnailData {
+                    dataToUse = thumb
+                } else if let full = photo.fullImageData {
+                    // 過去の写真には thumbnail がない → 作って保存
+                    let image = UIImage(data: full)!
+                    let thumb = image.resize(to: CGSize(width: 200, height: 200))
+                    dataToUse = thumb.jpegData(compressionQuality: 0.7)
+                    
+                    photo.thumbnailData = dataToUse
+                    try? context.save()
+                }
+
+                if let data = dataToUse, let image = UIImage(data: data) {
+                    thumbnailCache.setObject(image, forKey: photo.objectID)
+                    cachedKeys.insert(photo.objectID)
+                }
             }
         }
     }
 
-    func collectionView(_ collectionView: UICollectionView, cancelPrefetchingForItemsAt indexPaths: [IndexPath]) {
-        // 必要ならプリフェッチキャンセル処理
-    }
+
+    func collectionView(_ collectionView: UICollectionView, cancelPrefetchingForItemsAt indexPaths: [IndexPath]) { }
 
     // MARK: - Cache Helper
     private func updateCacheAround(index: Int) {
@@ -226,15 +236,13 @@ class PhotoGalleryViewController: UIViewController,
 
         for i in start...end {
             let photo = fetchedObjects[i]
-            if thumbnailCache.object(forKey: photo.objectID) == nil,
-               let data = photo.thumbnailData,
+            if let data = photo.thumbnailData, thumbnailCache.object(forKey: photo.objectID) == nil,
                let image = UIImage(data: data) {
                 thumbnailCache.setObject(image, forKey: photo.objectID)
                 cachedKeys.insert(photo.objectID)
             }
         }
 
-        // 範囲外キャッシュ削除
         for key in cachedKeys {
             if let idx = fetchedObjects.firstIndex(where: { $0.objectID == key }),
                idx < start || idx > end {
@@ -243,35 +251,6 @@ class PhotoGalleryViewController: UIViewController,
             }
         }
     }
-
-    // MARK: - NSFetchedResultsControllerDelegate
-    func controller(_ controller: NSFetchedResultsController<NSFetchRequestResult>,
-                    didChange anObject: Any,
-                    at indexPath: IndexPath?,
-                    for type: NSFetchedResultsChangeType,
-                    newIndexPath: IndexPath?) {
-        switch type {
-        case .insert:
-            if let newIndexPath = newIndexPath {
-                collectionView.insertItems(at: [newIndexPath])
-            }
-        case .delete:
-            if let indexPath = indexPath {
-                collectionView.deleteItems(at: [indexPath])
-            }
-        case .update:
-            if let indexPath = indexPath {
-                collectionView.reloadItems(at: [indexPath])
-            }
-        case .move:
-            if let indexPath = indexPath, let newIndexPath = newIndexPath {
-                collectionView.moveItem(at: indexPath, to: newIndexPath)
-            }
-        @unknown default:
-            break
-        }
-    }
-
 
     // MARK: - Fullscreen Image VC
     class FullscreenImageViewController: UIViewController {
@@ -296,6 +275,7 @@ class PhotoGalleryViewController: UIViewController,
         }
     }
 }
+
 
 
 
